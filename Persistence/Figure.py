@@ -1,7 +1,6 @@
 from Type import Type
 class Figure:
-    def __init__(self, player, x, y,figure_type):
-        self.Player=player
+    def __init__(self, x, y,figure_type):
         self.X=x
         self.Y=y
         self.Type=figure_type
