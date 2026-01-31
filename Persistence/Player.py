@@ -24,7 +24,7 @@ class Player():
         return self.Figures.get((x, y))
     
     #return list of figure positions    
-    def get_figure_list(self, x, y):
+    def get_figure_pos_list(self, x, y):
         return list(self.Figures.keys())
     
     #kiürítjük Figures listát
@@ -32,10 +32,10 @@ class Player():
         self.Figures.clear()
         
     #állítsuk be a Plaayer adatait fájlból beolvasva
-    def load_figures
+    #def load_figures
     
     #mentsük el plaayer adatait fájlba
-    def save_figures
+    #def save_figures
     
     
     def setup_player1(self):
