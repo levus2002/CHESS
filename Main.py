@@ -34,7 +34,7 @@ from Persistence.Type import Type
 
 # ---------- Konfiguráció ----------
 WINDOW_W, WINDOW_H = 1200, 720
-FPS = 60
+FPS = 20
 
 # relatív elrendezés
 LEFT_PANEL_RATIO = 0.25  # menü / player panel szélessége az ablakhoz képest
@@ -44,35 +44,6 @@ RIGHT_PANEL_RATIO = 1.0 - LEFT_PANEL_RATIO
 BOARD_ROWS = 14
 BOARD_COLS = 14
 
-
-
-
-
-    
-    
-    
-# Pygame megjelenítés minden frameben újrarajzolja a játékteret, nem akarom minden frameben kiszámolni, 
-# hogy a kiválasztott bábu melyik mezőkre tud lépni illetve ütni
-# -1 nem a tábla része
-# 0 nem érintett mező nincs keret/fekete keret 
-# 1 kiválasztott bábu itt áll mező sötét zöld keret
-# 2 kiválasztott bábu ide tud lépni, világosabb zöld keret
-# 3 kiválasztott bábu az itt álló bábu ütni tudja piros keret
-board_targets = [
-    [-1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1],
-    [-1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1],
-    [-1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [-1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1],
-    [-1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1],
-    [-1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1]]
 
 UNICODE_PIECES = {
     "K": "♚", "Q": "♛", "R": "♜", "B": "♝", "N": "♞", "P": "♟",
@@ -115,7 +86,6 @@ board_fields = [
     [-1, -1, -1, 1, 0, 1, 0, 1, 0, 1, 0, -1, -1, -1],
     [-1, -1, -1, 0, 1, 0, 1, 0, 1, 0, 1, -1, -1, -1]]
 
-Current_Player=1
 
 
     
@@ -150,7 +120,13 @@ Current_Player=1
 #def get_player_moves(player)
 
 # Új játékot indítunk
-#def newgame():
+def newgame():
+    player1=Player(1, PLAYER_COLORS[1])
+    player2=Player(2, PLAYER_COLORS[2])
+    player3=Player(3, PLAYER_COLORS[3])
+    player4=Player(4, PLAYER_COLORS[4])
+    board=Board(player1, player2, player3, player4)
+    
 
 # Ellenőrizzük vége van e már a játéknak
 # Hány király van még játékban
@@ -160,136 +136,9 @@ Current_Player=1
 
 
 #def game_over():
-def get_moves(figure, board):
-    SIZE = 14
 
-    board_targetset = [[0 for _ in range(SIZE)] for _ in range(SIZE)]
 
-    r = figure.X
-    c = figure.Y
-    player_id = figure.Player
-
-    board_targetset[r][c] = 1
-
-    def in_bounds(nr, nc):
-        return 0 <= nr < SIZE and 0 <= nc < SIZE
-
-    def is_blocked(nr, nc):
-        return board_fields[nr][nc] == -1
-
-    def handle_square(nr, nc):
-        occupant = board.board_state[nr][nc]
-        if occupant == 0:
-            board_targetset[nr][nc] = 2
-            return True   # mehet tovább
-        elif occupant == player_id:
-            return False  # saját → stop
-        else:
-            board_targetset[nr][nc] = 3
-            return False  # ütés után stop
-
-    # ---------------- ROOK ----------------
-    if figure.Type == Type.Rook:
-        directions = [(-1,0),(1,0),(0,-1),(0,1)]
-        for dr, dc in directions:
-            nr, nc = r+dr, c+dc
-            while in_bounds(nr,nc) and not is_blocked(nr,nc):
-                if not handle_square(nr,nc):
-                    break
-                nr += dr
-                nc += dc
-
-    # ---------------- BISHOP ----------------
-    elif figure.Type == Type.Bishop:
-        directions = [(-1,-1),(-1,1),(1,-1),(1,1)]
-        for dr, dc in directions:
-            nr, nc = r+dr, c+dc
-            while in_bounds(nr,nc) and not is_blocked(nr,nc):
-                if not handle_square(nr,nc):
-                    break
-                nr += dr
-                nc += dc
-
-    # ---------------- QUEEN ----------------
-    elif figure.Type == Type.Queen:
-        directions = [
-            (-1,0),(1,0),(0,-1),(0,1),
-            (-1,-1),(-1,1),(1,-1),(1,1)
-        ]
-        for dr, dc in directions:
-            nr, nc = r+dr, c+dc
-            while in_bounds(nr,nc) and not is_blocked(nr,nc):
-                if not handle_square(nr,nc):
-                    break
-                nr += dr
-                nc += dc
-
-    # ---------------- KNIGHT ----------------
-    elif figure.Type == Type.Knight:
-        jumps = [
-            (-2,-1),(-2,1),(2,-1),(2,1),
-            (-1,-2),(-1,2),(1,-2),(1,2)
-        ]
-        for dr, dc in jumps:
-            nr, nc = r+dr, c+dc
-            if in_bounds(nr,nc) and not is_blocked(nr,nc):
-                occupant = board.board_state[nr][nc]
-                if occupant == 0:
-                    board_targetset[nr][nc] = 2
-                elif occupant != player_id:
-                    board_targetset[nr][nc] = 3
-
-    # ---------------- KING ----------------
-    elif figure.Type == Type.King:
-        directions = [
-            (-1,0),(1,0),(0,-1),(0,1),
-            (-1,-1),(-1,1),(1,-1),(1,1)
-        ]
-        for dr, dc in directions:
-            nr, nc = r+dr, c+dc
-            if in_bounds(nr,nc) and not is_blocked(nr,nc):
-                occupant = board.board_state[nr][nc]
-                if occupant == 0:
-                    board_targetset[nr][nc] = 2
-                elif occupant != player_id:
-                    board_targetset[nr][nc] = 3
-
-    # ---------------- PAWN ----------------
-    elif figure.Type == Type.Pawn:
-
-        directions = [ (1,0),(0,-1),(-1,0),(0,1) ]
-        dr,dc = directions[player_id-1]
-
-        # ---- 1 mezős előrelépés ----
-        nr = r + dr
-        nc = c + dc
-
-        if in_bounds(nr, nc) and not is_blocked(nr, nc):
-            if board.board_state[nr][nc] == 0:
-                board_targetset[nr][nc] = 2
-
-                # ---- 2 mezős (ha még nem mozdult) ----
-                if not figure.HasMoved:
-                    nr2 = r + 2*dr
-                    nc2 = c + 2*dc
-
-                    if in_bounds(nr2, nc2) and not is_blocked(nr2, nc2):
-                        if board.board_state[nr2][nc2] == 0:
-                            board_targetset[nr2][nc2] = 2
-
-        # ---- Ütések ----
-        side_dirs = [(-dc, dr), (dc, -dr)]
-
-        for sdr, sdc in side_dirs:
-            nr = r + dr + sdr
-            nc = c + dc + sdc
-
-            if in_bounds(nr, nc) and not is_blocked(nr, nc):
-                occupant = board.board_state[nr][nc]
-                if occupant != 0 and occupant != figure.Player:
-                    board_targetset[nr][nc] = 3
-
-    return board_targetset
+    
 
     
 
@@ -316,14 +165,9 @@ class LeftPanel(UIElement):
 
 class BoardField(UIElement):
 
-    def __init__(self, rect: pg.Rect, rows, cols, board, player1, player2, player3, player4):
+    def __init__(self, rect: pg.Rect, rows, cols, board):
         super().__init__(rect)
         self.rows = rows; self.cols = cols
-        self.board_targets = board_targets
-        self.player1=player1
-        self.player2=player2
-        self.player3=player3
-        self.player4=player4
         self.board=board
         self.selected = None
         self.padding_px = 8
@@ -341,37 +185,44 @@ class BoardField(UIElement):
         return pad, side, cell_size, board_px, board_py
 
     def handle_event(self, ev, app):
-        player=self.currentplayer()
-        if ev.type==pg.MOUSEBUTTONDOWN and ev.button==1 and self.rect.collidepoint(ev.pos):
+        current=self.board.current_player_index
+        if ev.type==pg.MOUSEBUTTONDOWN and ev.button==1 and self.rect.collidepoint(ev.pos) and not self.board.is_game_over:
             mx,my = ev.pos
             pad, side, cell_size, board_px, board_py = self.compute_layout()
             rel_x = mx - board_px; rel_y = my - board_py
             col = int(rel_x // cell_size); row = int(rel_y // cell_size)
             if 0 <= row < self.rows and 0 <= col < self.cols and board_fields[row][col] != -1:
-
                 entry = self.board.board_state[row][col]
-                if entry == Current_Player and self.selected != (row,col):
-                    Fig = player.get_figure(row, col)# type: ignore
-                    if Fig is not None:
-                        self.selected = (row, col)
-                        self.board_targets = get_moves(Fig, self.board)
-                else:
-                    self.selected = None
-                    self.board_targets = [[0]*14 for _ in range(14)]
+                print(entry)
+                match self.board.board_targets[row][col]:
+                    case 0:
+                        # Ha a kattintott figura a soron következő játékosé
+                        if entry == current :
+                            Fig = self.board.get_player(current).get_figure(row, col)# type: ignore
+                            if Fig is not None:
+                                self.selected = (row, col)
+                                self.board.board_targets = self.board.get_moves(Fig)
+                    case 1:
+                        self.selected = None
+                        self.board.board_targets = self.board.empty_board()
+                    case 2:
+                        r,c=self.selected # type: ignore
+                        self.board.make_move(r,c,row,col)
+                        self.selected = None
+                        self.board.board_targets = self.board.empty_board()
+                        #make_move(r,c,row,col,self.board)
+                    case 3:
+                        r,c=self.selected # type: ignore
+                        self.board.make_move(r,c,row,col)
+                        self.selected = None
+                        self.board.board_targets = self.board.empty_board()
+                        #make_move(r,c,row,col,self.board)
+
                 print("Board clicked cell:", (row,col))
             else:
+                self.selected = None
+                self.board.board_targets = self.board.empty_board()
                 print("Click outside playable board or on OOB cell.")
-
-    def currentplayer(self):
-        match Current_Player:
-                    case 1:
-                        return self.player1
-                    case 2:
-                        return self.player2
-                    case 3:
-                        return self.player3
-                    case 4:
-                        return self.player4
     
     def render(self, surf, app):
         pad, side, cell_size, board_px, board_py = self.compute_layout()
@@ -389,7 +240,7 @@ class BoardField(UIElement):
                 color = SQUARE_DARK if bf == 1 else SQUARE_LIGHT
                 pg.draw.rect(surf, color, rect)
                 # selection/target highlight
-                match self.board_targets[r][c]:
+                match self.board.board_targets[r][c]:
                     case 1:
                         pg.draw.rect(surf, TARGET_BORDER[1], rect, width=4)
                     case 2:
@@ -400,16 +251,7 @@ class BoardField(UIElement):
                 entry = self.board.board_state[r][c]
                 if entry <=0:
                     continue
-                player=self.player1
-                match entry:
-                    case 1:
-                        player=self.player1
-                    case 2:
-                        player=self.player2
-                    case 3:
-                        player=self.player3
-                    case 4:
-                        player=self.player4
+                player=self.board.get_player(entry)
                 Fig=player.get_figure(r,c)
                 ch = UNICODE_PIECES[Fig.Type.char]
                 font_sz = max(12, int(cell_size * 0.8))
@@ -443,11 +285,10 @@ class App:
         self.player2=Player(2, PLAYER_COLORS[2])
         self.player3=Player(3, PLAYER_COLORS[3])
         self.player4=Player(4, PLAYER_COLORS[4])
-        self.board=Board()
-        self.board.setupboard_state(self.player1, self.player2, self.player3, self.player4 )
+        self.board=Board(self.player1, self.player2, self.player3, self.player4)
         # UI elements lesznek frameenként újraszámolva rect alapján
         # board wrapper (tárolja a piece_grid és board_fields)
-        self.board_panel = BoardField(pg.Rect(0,0,100,100), BOARD_ROWS, BOARD_COLS, self.board, self.player1, self.player2, self.player3, self.player4)
+        self.board_panel = BoardField(pg.Rect(0,0,100,100), BOARD_ROWS, BOARD_COLS, self.board)
         # placeholder left panel, status bar recteket a layout() állítja be
         self.left_panel = LeftPanel(pg.Rect(0,0,100,100))
         self.status = StatusBar(pg.Rect(0,0,100,20))
