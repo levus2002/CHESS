@@ -87,38 +87,6 @@ board_fields = [
     [-1, -1, -1, 0, 1, 0, 1, 0, 1, 0, 1, -1, -1, -1]]
 
 
-
-    
-# click event
-# Ablak átméretezés kedvéért relatív méretet használok.
-#x<0.1 menüsör nézzük meg a menügombokat, hogy meglettek-e enyomva
-#x>0.9 státuszsor nincs interakció
-#egyébb akkor a click a játékteret érintette, nézzük meg melyik mező lett megnyomva, ha mező volt.
-
-
-#Board osztály és player osztályok létrehozása és setupolása
-#def setup_game():
-
-    
-# Ha a click egy valid mezőt érintett
-# Boardtól megkérdezzük mi a mező fieldstateje, vagyis áll e ott figura és melyik játékosé
-# Ha van már selected bábu, és erre a mezőre tudunk lépni akkor lépjünk oda
-# Ha van selected és nem tudunk ide lépni, mert itt is a mi bábunk áll, akkor legyen ez az új selected.
-# Ha van selected, ami nem tud ide lépni akkor deselecteljük a bábut
-# Ha nincs selected és olyan bábus mezőre kattintottunk amin a soron következő player bábuja áll akkor selecteljük.
-# Ha nincs selected és a click nem selectelt semmit akkor nem kell csinálni semmit
-# Az utolsó opción kívűl mindnél megakarjuk hívni a get_moves-t mert változott a selected
-#def field_clicked(x,y):
-    
-
-
-# Boardot megkérdezzük melyik player áll a mezőn.
-# Playert megkérdezzük milyen bábu áll a mezőn.
-# Figurának meghívjuk a get_moves metódusát
-#def get_moves(r,c,board):
-
-#def get_player_moves(player)
-
 # Új játékot indítunk
 def newgame():
     player1=Player(1, PLAYER_COLORS[1])
@@ -127,15 +95,6 @@ def newgame():
     player4=Player(4, PLAYER_COLORS[4])
     board=Board(player1, player2, player3, player4)
     
-
-# Ellenőrizzük vége van e már a játéknak
-# Hány király van még játékban
-# Ritkább és nem tudom kell e majd ez,
-# de lépésismétlés illetve lépések száma ütés és gyalog mozgatás nélkül. Nem véletlenül van a FIDE szabályzatban.
-#def is_game_over():
-
-
-#def game_over():
 
 
     
