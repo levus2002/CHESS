@@ -1,14 +1,19 @@
 from .Figure import Figure
 from .Type import Type
 class Player():
-    def __init__(self, which_player, color, name=None):
+    def __init__(self, which_player, name=None):
         self.IsDefeated = False
         self.Score = 0
         self.Figures: dict[tuple[int, int], Figure] = {}
-        self.Color = color
         self.Which_Player = which_player
         self.name = name if name is not None else f"Player{which_player}"
-        match which_player:
+        
+                
+    def startposition(self):
+        self.IsDefeated = False
+        self.Figures: dict[tuple[int, int], Figure] = {}
+        self.Score = 0
+        match self.Which_Player:
             case 1:
                 self.setup_player1()
             case 2:
@@ -17,6 +22,8 @@ class Player():
                 self.setup_player3()
             case 4:
                 self.setup_player4()
+        
+        
     def add_figure(self, figure):
         self.Figures[(figure.X, figure.Y)] = figure
         
@@ -34,7 +41,6 @@ class Player():
     def empty_figures(self):
         self.Figures.clear()
     
-    # hívjuk meg minden figurára a Figure osztály get_moves-át 
 
         
     #állítsuk be a Player adatait fájlból beolvasva

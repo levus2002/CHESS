@@ -1,5 +1,15 @@
+from dataclasses import dataclass
 from .Figure import Figure
 from .Type import Type
+
+@dataclass(frozen=True)
+class Action:
+    from_row: int
+    from_col: int
+    to_row: int
+    to_col: int
+    special: object = None
+
 class Board:
     def __init__(self,player1,player2,player3,player4):
         self.board_state = self.empty_board()
@@ -9,11 +19,21 @@ class Board:
         self.player4=player4
         self.current_player_index=1
         self.is_game_over=False
-        self.setupboard_state()
         self.board_targets=self.empty_board()
+        self.selected_figure = None
+        self.current_actions: list[Action] = []
+        self.action_lookup: dict[tuple[int,int], list[Action]] = {}
     
-    #def newgame(self):
-        
+    def newgame(self):
+        self.board_state = self.empty_board()
+        self.is_game_over=False
+        self.player1.startposition()
+        self.player2.startposition()
+        self.player3.startposition()
+        self.player4.startposition()
+        self.setupboard_state()
+        self.current_player_index=1
+        self.board_targets=self.empty_board()
         
     
     def setupboard_state(self):
@@ -60,33 +80,63 @@ class Board:
         self.current_player_index=next
 
 
-    def get_moves(self, figure):
-        SIZE = 14
+    def get_figure(self,x,y):
+        p=self.board_state[x][y]
+        player=self.get_player(p)
+        return player.get_figure(x,y) # type: ignore
 
-        board_targetset = self.empty_board()
+    def select_figure(self, x, y):
+        fig = self.get_figure(x, y)
+        if fig is None:
+            self.selected_figure = None
+            self.current_actions = []
+            self.action_lookup = {}
+            self.board_targets = self.empty_board()
+            return
+        print(fig.HasMoved)
+        self.selected_figure = fig
+        self.current_actions = self.get_moves(fig)
+
+        self.action_lookup = {}
+        for a in self.current_actions:
+            key = (a.to_row, a.to_col)
+            self.action_lookup.setdefault(key, []).append(a)
+        self.board_targets = self.actions_to_board_targets(self.current_actions)
+
+
+    def resolve_action_by_target(self, to_row: int, to_col: int) -> Action | None:
+        lst = self.action_lookup.get((to_row, to_col))
+        if not lst:
+            return None
+        if len(lst) == 1:
+            return lst[0]
+        return lst[0]
+
+
+    def get_moves(self, figure: Figure):
+        SIZE = 14
+        actions = []
 
         r = figure.X
         c = figure.Y
         player_id = figure.Player
-
-        board_targetset[r][c] = 1
-
+        player =self.get_player(player_id)
         def in_bounds(nr, nc):
             return 0 <= nr < SIZE and 0 <= nc < SIZE
 
         def is_blocked(nr, nc):
-            return board_targetset[nr][nc] == -1
+            return self.board_state[nr][nc] == -1
 
-        def handle_square(nr, nc):
+        def handle_square_for_slides(nr, nc):
             occupant = self.board_state[nr][nc]
             if occupant == 0:
-                board_targetset[nr][nc] = 2
-                return True   # mehet tovább
+                actions.append(Action(r, c, nr, nc, None))
+                return True   # keep sliding
             elif occupant == player_id:
-                return False  # saját → stop
+                return False  # own piece -> stop
             else:
-                board_targetset[nr][nc] = 3
-                return False  # ütés után stop
+                actions.append(Action(r, c, nr, nc, "capture"))
+                return False  # capture -> stop
 
         # ---------------- ROOK ----------------
         if figure.Type == Type.Rook:
@@ -94,7 +144,7 @@ class Board:
             for dr, dc in directions:
                 nr, nc = r+dr, c+dc
                 while in_bounds(nr,nc) and not is_blocked(nr,nc):
-                    if not handle_square(nr,nc):
+                    if not handle_square_for_slides(nr,nc):
                         break
                     nr += dr
                     nc += dc
@@ -105,7 +155,7 @@ class Board:
             for dr, dc in directions:
                 nr, nc = r+dr, c+dc
                 while in_bounds(nr,nc) and not is_blocked(nr,nc):
-                    if not handle_square(nr,nc):
+                    if not handle_square_for_slides(nr,nc):
                         break
                     nr += dr
                     nc += dc
@@ -119,7 +169,7 @@ class Board:
             for dr, dc in directions:
                 nr, nc = r+dr, c+dc
                 while in_bounds(nr,nc) and not is_blocked(nr,nc):
-                    if not handle_square(nr,nc):
+                    if not handle_square_for_slides(nr,nc):
                         break
                     nr += dr
                     nc += dc
@@ -135,9 +185,9 @@ class Board:
                 if in_bounds(nr,nc) and not is_blocked(nr,nc):
                     occupant = self.board_state[nr][nc]
                     if occupant == 0:
-                        board_targetset[nr][nc] = 2
+                        actions.append(Action(r, c, nr, nc, None))
                     elif occupant != player_id:
-                        board_targetset[nr][nc] = 3
+                        actions.append(Action(r, c, nr, nc, "capture"))
 
         # ---------------- KING ----------------
         elif figure.Type == Type.King:
@@ -150,46 +200,95 @@ class Board:
                 if in_bounds(nr,nc) and not is_blocked(nr,nc):
                     occupant = self.board_state[nr][nc]
                     if occupant == 0:
-                        board_targetset[nr][nc] = 2
+                        actions.append(Action(r, c, nr, nc, None))
                     elif occupant != player_id:
-                        board_targetset[nr][nc] = 3
+                        actions.append(Action(r, c, nr, nc, "capture"))
+            # ---------------- KingCastle ----------------
+            if figure.HasMoved==False:
+                match player_id:
+                    case 1:
+                        if self.board_state[0][4]==0 and self.board_state[0][5]==0:
+                            if self.board_state[0][3]==player_id:
+                                F= player.get_figure(0,3) # type: ignore
+                                if F.Type==Type.Rook and F.HasMoved==False:
+                                    actions.append(Action(r, c, 0, 4, "KingCastle"))
+                    case 4:
+                        if self.board_state[5][0]==0 and self.board_state[4][0]==0:
+                            if self.board_state[3][0]==player_id:
+                                F= player.get_figure(3,0) # type: ignore
+                                if F.Type==Type.Rook and F.HasMoved==False:
+                                    actions.append(Action(r, c, 4, 0, "KingCastle"))
+                    case 2:
+                        if self.board_state[8][13]==0 and self.board_state[9][13]==0:
+                            if self.board_state[10][13]==player_id:
+                                F= player.get_figure(10,13) # type: ignore
+                                if F.Type==Type.Rook and F.HasMoved==False:
+                                    actions.append(Action(r, c, 9, 13, "KingCastle"))
+                    case 3:
+                        if self.board_state[13][8]==0 and self.board_state[13][9]==0:
+                            if self.board_state[13][10]==player_id:
+                                F= player.get_figure(13,10) # type: ignore
+                                if F.Type==Type.Rook and F.HasMoved==False:
+                                    actions.append(Action(r, c, 13, 9, "KingCastle"))
+            # ---------------- QueenCastle ----------------
+            if figure.HasMoved==False:
+                match player_id:
+                    case 1:
+                        if self.board_state[0][7]==0 and self.board_state[0][8]==0 and self.board_state[0][9]==0:
+                            if self.board_state[0][10]==player_id:
+                                F= player.get_figure(0,10) # type: ignore
+                                if F.Type==Type.Rook and F.HasMoved==False:
+                                    actions.append(Action(r, c, 0, 8, "QueenCastle"))
+                    case 4:
+                        if self.board_state[7][0]==0 and self.board_state[8][0]==0 and self.board_state[9][0]==0:
+                            if self.board_state[10][0]==player_id:
+                                F= player.get_figure(10,0) # type: ignore
+                                if F.Type==Type.Rook and F.HasMoved==False:
+                                    actions.append(Action(r, c, 8, 0, "QueenCastle"))
+                    case 2:
+                        if self.board_state[6][13]==0 and self.board_state[5][13]==0 and self.board_state[4][13]==0:
+                            if self.board_state[3][13]==player_id:
+                                F= player.get_figure(3,13) # type: ignore
+                                if F.Type==Type.Rook and F.HasMoved==False:
+                                    actions.append(Action(r, c, 5, 13, "QueenCastle"))
+                    case 3:
+                        if self.board_state[13][6]==0 and self.board_state[13][5]==0 and self.board_state[13][4]==0:
+                            if self.board_state[13][3]==player_id:
+                                F= player.get_figure(13,3) # type: ignore
+                                if F.Type==Type.Rook and F.HasMoved==False:
+                                    actions.append(Action(r, c, 13, 5, "QueenCastle"))                                
+                            
+            
 
         # ---------------- PAWN ----------------
         elif figure.Type == Type.Pawn:
-
             directions = [ (1,0),(0,-1),(-1,0),(0,1) ]
             dr,dc = directions[player_id-1]
 
-            # ---- 1 mezős előrelépés ----
             nr = r + dr
             nc = c + dc
-
             if in_bounds(nr, nc) and not is_blocked(nr, nc):
                 if self.board_state[nr][nc] == 0:
-                    board_targetset[nr][nc] = 2
+                    actions.append(Action(r, c, nr, nc, None))
 
-                    # ---- 2 mezős (ha még nem mozdult) ----
+
                     if not figure.HasMoved:
                         nr2 = r + 2*dr
                         nc2 = c + 2*dc
-
                         if in_bounds(nr2, nc2) and not is_blocked(nr2, nc2):
                             if self.board_state[nr2][nc2] == 0:
-                                board_targetset[nr2][nc2] = 2
+                                actions.append(Action(r, c, nr2, nc2, "double"))
 
-            # ---- Ütések ----
             side_dirs = [(-dc, dr), (dc, -dr)]
-
             for sdr, sdc in side_dirs:
                 nr = r + dr + sdr
                 nc = c + dc + sdc
-
                 if in_bounds(nr, nc) and not is_blocked(nr, nc):
                     occupant = self.board_state[nr][nc]
                     if occupant != 0 and occupant != figure.Player:
-                        board_targetset[nr][nc] = 3
+                        actions.append(Action(r, c, nr, nc, "capture"))
 
-        return board_targetset
+        return actions
     
     
     # a kiválasztott bábu melyik mezőkre tud lépni illetve ütni
@@ -198,6 +297,36 @@ class Board:
     # 1 kiválasztott bábu itt áll mező sötét zöld keret
     # 2 kiválasztott bábu ide tud lépni, világosabb zöld keret
     # 3 kiválasztott bábu az itt álló bábu ütni tudja piros keret
+    def actions_to_board_targets(self, actions, highlight_from=True):
+        board_targetset = self.empty_board()
+        for a in actions:
+            if highlight_from:
+                board_targetset[a.from_row][a.from_col] = 1
+            if a.special == "capture":
+                board_targetset[a.to_row][a.to_col] = 3
+            else:
+                if 0 <= a.to_row < len(board_targetset) and 0 <= a.to_col < len(board_targetset[0]):
+                    occupant = self.board_state[a.to_row][a.to_col]
+                    if occupant != 0 and occupant != self.board_state[a.from_row][a.from_col]:
+                        board_targetset[a.to_row][a.to_col] = 3
+                    else:
+                        board_targetset[a.to_row][a.to_col] = 2
+        return board_targetset
+    
+    def get_all_moves(self, player_index: int):
+        moves = []
+        player = self.get_player(player_index)
+        for pos in player.get_figure_pos_list(): # type: ignore
+            r, c = pos
+            fig = player.get_figure(r, c) # type: ignore
+            if fig is None:
+                continue
+            fig_actions = self.get_moves(fig)
+            moves.extend(fig_actions)
+        return moves
+    
+    
+    
     def empty_board(self):
         return [
     [-1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1],
@@ -216,27 +345,94 @@ class Board:
     [-1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1]]
 
 
-    def make_move(self, row, col, newrow, newcol):
-        p1=self.board_state[row][col]
-        player1=self.get_player(p1)
-        Fig1=player1.get_figure(row,col) # type: ignore
-        if Fig1 is None:
+    def make_move(self, action: Action):
+        row, col = action.from_row, action.from_col
+        newrow, newcol = action.to_row, action.to_col
+
+        p1 = self.board_state[row][col]
+        if p1 == 0:
             print("ERROR: Nincs bábu a mezőn")
             return
-        player1.remove_figure(Fig1) # type: ignore
-        Fig1.move(newrow,newcol)
-        player1.add_figure(Fig1) # type: ignore
+        player1 = self.get_player(p1)
+        Fig1 = player1.get_figure(row, col)  # type: ignore
+        if Fig1 is None:
+            print("ERROR: játékosnak nincs ilyen bábuja")
+            return
+
+
+        p2 = self.board_state[newrow][newcol]
+        if p2 > 0 and p2 != p1:
+            player2 = self.get_player(p2)
+            Fig2 = player2.get_figure(newrow, newcol)  # type: ignore
+            if Fig2 is not None:
+                if Fig2.Type == Type.King:
+                    player2.IsDefeated = True  # type: ignore
+                player2.remove_figure(Fig2)  # type: ignore
+
+        # remove from current player container, move, add back
+        player1.remove_figure(Fig1)  # type: ignore
+        Fig1.move(newrow, newcol)
+        player1.add_figure(Fig1)  # type: ignore
+
+        # update board_state grid
+        self.board_state[newrow][newcol] = p1
+        self.board_state[row][col] = 0
         
-        p2=self.board_state[newrow][newcol]
-        if p2==p1:
-            print("ERROR saját bábu áll a mezőn ")
-        if p2>0:
-            player2=self.get_player(p2)
-            Fig2=player2.get_figure(newrow,newcol)  # type: ignore
-            if Fig2.Type == Type.King:
-                player2.IsDefeated=True    # type: ignore
-            player2.remove_figure(Fig2) # type: ignore
+        if action.special=="KingCastle":
+            rookrow,rookcol=0,0
+            newrookrow,newrookcol=0,0
+            if row-newrow==2:
+                rookrow,rookcol=3,0
+                newrookrow,newrookcol=5,0
+            if row-newrow==-2:
+                rookrow,rookcol=10,13
+                newrookrow,newrookcol=8,13
+            if col-newcol==2:
+                rookrow,rookcol=0,3
+                newrookrow,newrookcol=0,5
+            if col-newcol==-2:
+                rookrow,rookcol=13,10
+                newrookrow,newrookcol=13,8
+            Fig3=player1.get_figure(rookrow,rookcol) # type: ignore
+            player1.remove_figure(Fig3) # type: ignore
+            Fig3.move(newrookrow,newrookcol)
+            player1.add_figure(Fig3) # type: ignore
+            self.board_state[newrookrow][newrookcol] = p1
+            self.board_state[rookrow][rookcol] = 0
+            
+        if action.special=="QueenCastle":
+            rookrow,rookcol=0,0
+            newrookrow,newrookcol=0,0
+            if row-newrow==2:
+                rookrow,rookcol=3,13
+                newrookrow,newrookcol=6,13
+            if row-newrow==-2:
+                rookrow,rookcol=10,0
+                newrookrow,newrookcol=7,0
+            if col-newcol==2:
+                rookrow,rookcol=13,3
+                newrookrow,newrookcol=13,6
+            if col-newcol==-2:
+                rookrow,rookcol=0,10
+                newrookrow,newrookcol=0,7
+            Fig3=player1.get_figure(rookrow,rookcol) # type: ignore
+            player1.remove_figure(Fig3) # type: ignore
+            Fig3.move(newrookrow,newrookcol)
+            player1.add_figure(Fig3) # type: ignore
+            self.board_state[newrookrow][newrookcol] = p1
+            self.board_state[rookrow][rookcol] = 0
         
-        self.board_state[newrow][newcol]=p1
-        self.board_state[row][col]=0
+
         self.next_player()
+        
+    def try_move(self, to_row: int, to_col: int) -> bool:
+        action = self.resolve_action_by_target(to_row, to_col)
+        if action is None:
+            return False
+
+        self.make_move(action)
+        self.selected_figure = None
+        self.current_actions = []
+        self.action_lookup = {}
+        self.board_targets = self.empty_board()
+        return True

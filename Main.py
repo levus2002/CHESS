@@ -87,13 +87,6 @@ board_fields = [
     [-1, -1, -1, 0, 1, 0, 1, 0, 1, 0, 1, -1, -1, -1]]
 
 
-# Új játékot indítunk
-def newgame():
-    player1=Player(1, PLAYER_COLORS[1])
-    player2=Player(2, PLAYER_COLORS[2])
-    player3=Player(3, PLAYER_COLORS[3])
-    player4=Player(4, PLAYER_COLORS[4])
-    board=Board(player1, player2, player3, player4)
     
 
 
@@ -121,6 +114,7 @@ class LeftPanel(UIElement):
     def handle_event(self, ev, app):
         if ev.type==pg.MOUSEBUTTONDOWN and ev.button==1 and self.rect.collidepoint(ev.pos):
             print("Left panel clicked")
+            app.newgame()
 
 class BoardField(UIElement):
 
@@ -153,29 +147,21 @@ class BoardField(UIElement):
             if 0 <= row < self.rows and 0 <= col < self.cols and board_fields[row][col] != -1:
                 entry = self.board.board_state[row][col]
                 print(entry)
-                match self.board.board_targets[row][col]:
-                    case 0:
-                        # Ha a kattintott figura a soron következő játékosé
-                        if entry == current :
-                            Fig = self.board.get_player(current).get_figure(row, col)# type: ignore
-                            if Fig is not None:
-                                self.selected = (row, col)
-                                self.board.board_targets = self.board.get_moves(Fig)
-                    case 1:
+                if self.board.selected_figure is None:
+                    if entry == current:
+                        self.selected = (row, col)
+                        self.board.select_figure(row, col)
+                else:
+                    moved = self.board.try_move(row, col)
+                    if moved:
                         self.selected = None
-                        self.board.board_targets = self.board.empty_board()
-                    case 2:
-                        r,c=self.selected # type: ignore
-                        self.board.make_move(r,c,row,col)
-                        self.selected = None
-                        self.board.board_targets = self.board.empty_board()
-                        #make_move(r,c,row,col,self.board)
-                    case 3:
-                        r,c=self.selected # type: ignore
-                        self.board.make_move(r,c,row,col)
-                        self.selected = None
-                        self.board.board_targets = self.board.empty_board()
-                        #make_move(r,c,row,col,self.board)
+                    else:
+                        if entry == current:
+                            self.selected = (row, col)
+                            self.board.select_figure(row, col)
+                        else:
+                            self.selected = None
+                            self.board.board_targets = self.board.empty_board()      
 
                 print("Board clicked cell:", (row,col))
             else:
@@ -218,7 +204,7 @@ class BoardField(UIElement):
                 bbox = piece_font.get_rect(ch)
                 px = int(board_px + c*cell_size + cell_size/2 - bbox.width//2)
                 py = int(board_py + r*cell_size + cell_size/2 - bbox.height//2)
-                fg = player.Color 
+                fg = PLAYER_COLORS[entry]
                 piece_font.render_to(surf, (px, py), ch, fgcolor=fg)   
             
                 
@@ -236,15 +222,16 @@ class StatusBar(UIElement):
 class App:
     def __init__(self):
         pg.init()
-        pg.display.set_caption("4-player chess - refactor demo")
+        pg.display.set_caption("4-player chess")
         self.screen = pg.display.set_mode((WINDOW_W, WINDOW_H), pg.RESIZABLE)
         self.clock = pg.time.Clock()
         
-        self.player1=Player(1, PLAYER_COLORS[1])
-        self.player2=Player(2, PLAYER_COLORS[2])
-        self.player3=Player(3, PLAYER_COLORS[3])
-        self.player4=Player(4, PLAYER_COLORS[4])
+        self.player1=Player(1)
+        self.player2=Player(2)
+        self.player3=Player(3)
+        self.player4=Player(4)
         self.board=Board(self.player1, self.player2, self.player3, self.player4)
+        self.newgame()
         # UI elements lesznek frameenként újraszámolva rect alapján
         # board wrapper (tárolja a piece_grid és board_fields)
         self.board_panel = BoardField(pg.Rect(0,0,100,100), BOARD_ROWS, BOARD_COLS, self.board)
@@ -296,6 +283,52 @@ class App:
             self.render()
         pg.quit()
         sys.exit()
+
+    def newgame(self):
+        self.board.newgame()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 def main():
     App().run()
