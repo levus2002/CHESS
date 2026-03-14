@@ -77,6 +77,12 @@ TARGET_BORDER = {
     2: (144, 238, 144), # move: világos zöld
     3: (200, 40, 40),   # capture: piros
 }
+player_corners = {
+    (0,13):1,
+    (13,13):2,
+    (13,0):3,
+    (0,0):4
+}
 # -1 nem a tábla része
 # 0 világos mező
 # 1 sötét mező
@@ -299,13 +305,27 @@ class BoardField(UIElement):
         # squares
         for r in range(self.rows):
             for c in range(self.cols):
-                bf = board_fields[r][c]
-                if bf == -1:
-                    continue
+                bf = board_fields[r][c]                    
                 sx = int(board_px + c*cell_size)
                 sy = int(board_py + r*cell_size)
                 rect = pg.Rect(sx, sy, int(cell_size)+1, int(cell_size)+1)
                 color = SQUARE_DARK if bf == 1 else SQUARE_LIGHT
+                if (r,c) in player_corners:
+                    pg.draw.rect(surf, SQUARE_LIGHT, rect)
+
+                    p = self.board.get_player(player_corners[(r,c)])
+                    rcol = COLORS[p.Color]["rgb"]
+
+                    text = f"{p.Reward:+.2f}"
+                    font_sz = int(cell_size * 0.3)
+                    piece_font = ft.SysFont("Segoe UI Symbol", font_sz)
+
+                    text_rect = piece_font.get_rect(text)
+                    text_rect.center = rect.center
+
+                    piece_font.render_to(surf, text_rect, text, rcol)
+                if bf == -1:
+                    continue
                 pg.draw.rect(surf, color, rect)
                 # selection/target highlight
                 match self.board.board_targets[r][c]:
