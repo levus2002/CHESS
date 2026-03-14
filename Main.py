@@ -315,6 +315,8 @@ class BoardField(UIElement):
                         pg.draw.rect(surf, TARGET_BORDER[2], rect, width=4)
                     case 3:
                         pg.draw.rect(surf, TARGET_BORDER[3], rect, width=4)
+                    case 4:
+                        pg.draw.rect(surf, COLORS["blue"]["rgb"], rect, width=4)
                 # piece render from piece_grid
                 entry = self.board.board_state[r][c]
                 if entry <=0:

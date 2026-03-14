@@ -24,6 +24,7 @@ class Board:
     def __init__(self,player1,player2,player3,player4):
         self.board_state = self.empty_board()
         self.msg=""
+        self.ispromoting=False
         self.player1=player1
         self.player2=player2
         self.player3=player3
@@ -40,6 +41,7 @@ class Board:
         self.board_state = self.empty_board()
         self.is_game_over=False
         self.move_number=1
+        self.ispromoting=False
         self.msg=""
         self.player1.startposition()
         self.player2.startposition()
@@ -322,14 +324,15 @@ class Board:
     # 0 nem érintett mező nincs keret/fekete keret 
     # 1 kiválasztott bábu itt áll mező sötét zöld keret
     # 2 kiválasztott bábu ide tud lépni, világosabb zöld keret
-    # 3 kiválasztott bábu az itt álló bábu ütni tudja piros keret
+    # 3 kiválasztott bábu az itt álló bábut ütni tudja piros keret
+    # 4 kiválasztott gyalog ha idelép akkor előléptetődik
     def actions_to_board_targets(self, actions, highlight_from=True):
         board_targetset = self.empty_board()
         for a in actions:
             if highlight_from:
                 board_targetset[a.from_row][a.from_col] = 1
-            if a.special == "capture":
-                board_targetset[a.to_row][a.to_col] = 3
+            if a.special == "promotion":
+                board_targetset[a.to_row][a.to_col] = 4
             else:
                 if 0 <= a.to_row < len(board_targetset) and 0 <= a.to_col < len(board_targetset[0]):
                     occupant = self.board_state[a.to_row][a.to_col]
@@ -337,6 +340,11 @@ class Board:
                         board_targetset[a.to_row][a.to_col] = 3
                     else:
                         board_targetset[a.to_row][a.to_col] = 2
+                    fromrow,fromcol=a.from_row,a.from_col
+                    p=self.board_state[fromrow][fromcol]
+                    if self.ispromotion(a.to_row, a.to_col,p ):
+                        if self.get_figure(fromrow,fromcol).Type==Type.Pawn:
+                            board_targetset[a.to_row][a.to_col] = 4
         return board_targetset
     
     def get_all_moves(self, player_index: int):
