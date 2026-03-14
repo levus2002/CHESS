@@ -101,7 +101,11 @@ board_fields = [
 
 
     
-
+def format_time(ms):
+    total_sec = ms // 1000
+    minutes = total_sec // 60
+    seconds = total_sec % 60
+    return f"{minutes:02}:{seconds:02}"
     
 
 class UIElement:
@@ -109,23 +113,132 @@ class UIElement:
         self.rect = rect
     def handle_event(self, ev, app): ...
     def render(self, surf, app): ...
+class MenuBar(UIElement):
+    def __init__(self, rect: pg.Rect, buttons: list[str]):
+        super().__init__(rect)
+        self.buttons = buttons
+        self.button_rects = {}
 
+    def handle_event(self, ev, app):
+        if ev.type == pg.MOUSEBUTTONDOWN and ev.button == 1:
+            for text, rect in self.button_rects.items():
+                if rect.collidepoint(ev.pos):
+                    if text == "New Game":
+                        app.newgame()
+                    elif text == "Save Game":
+                        print("Save Game clicked")
+                    elif text == "Load Game":
+                        print("Load Game clicked")
+                    return
+
+    def render(self, surf, app):
+        self.button_rects.clear()
+        font = ft.SysFont(None, 18)
+        gap = 8
+        x = self.rect.x + 10
+        y = self.rect.y + 10
+        btn_h = 28
+
+        for text in self.buttons:
+            btn_w = font.get_rect(text).width + 16
+            rect = pg.Rect(x, y, btn_w, btn_h)
+            pg.draw.rect(surf, (70,70,70), rect, border_radius=4)
+            font.render_to(surf, (x + 8, y + 6), text, fgcolor=(230,230,230))
+            self.button_rects[text] = rect
+            x += btn_w + gap
+            
 class LeftPanel(UIElement):
     def __init__(self, rect: pg.Rect):
         super().__init__(rect)
-    def render(self, surf, app):
-        pg.draw.rect(surf, (40,40,40), self.rect)
-        btn_h, gap = 30, 8
-        btn_w = max(10, self.rect.width - 20)
-        for i, txt in enumerate(["New Game","Save Game","Load Game"]):
-            r = pg.Rect(self.rect.x+10, self.rect.y+10 + i*(btn_h+gap), btn_w, btn_h)
-            pg.draw.rect(surf, (70,70,70), r, border_radius=4)
-            ft.SysFont(None, 18).render_to(surf, (r.x+8, r.y+6), txt, fgcolor=(230,230,230))
-    def handle_event(self, ev, app):
-        if ev.type==pg.MOUSEBUTTONDOWN and ev.button==1 and self.rect.collidepoint(ev.pos):
-            print("Left panel clicked")
-            app.newgame()
+        self.color_cells = {}
 
+    def handle_event(self, ev, app):
+        if ev.type == pg.MOUSEBUTTONDOWN and ev.button == 1:
+            for (player_id, color_name), rect in self.color_cells.items():
+                if rect.collidepoint(ev.pos):
+                    player = app.board.get_player(player_id)
+                    owner = COLORS[color_name]["player"]
+
+                    if owner is None or owner == player.Which_Player:
+                        if player.Color != color_name:
+                            # Free old color
+                            COLORS[player.Color]["player"] = None
+
+                            # Assign new color
+                            COLORS[color_name]["player"] = player.Which_Player
+                            player.Color = color_name
+                    break
+
+    def render(self, surf, app):
+        # Background
+        pg.draw.rect(surf, (40,40,40), self.rect)
+
+
+        card_h = self.rect.height // 4
+        font = ft.SysFont(None, 22)
+        self.color_cells.clear()
+
+        for i in range(1,5):
+            player=app.board.get_player(i)
+            r = pg.Rect(
+                self.rect.x + 10,
+                self.rect.y + (i-1) * card_h,
+                self.rect.width - 20,
+                card_h - 10
+            )
+            pg.draw.rect(surf, (60,60,60), r, border_radius=6)
+
+            # Highlight current player
+            if player == app.board.get_current_player():
+                pg.draw.rect(surf, (200,200,200), r, width=2)
+
+            # PLAYER NAME
+            font.render_to(
+                surf,
+                (r.x + 10, r.y + 8),
+                f"PLAYER {player.Which_Player}",
+                #fgcolor=(230,230,230)
+                fgcolor=COLORS[player.Color]["rgb"]
+            )
+
+            # CLOCK
+            clock_text = format_time(player.time_ms)
+            time_color = (220,50,47) if player.time_ms < 30000 else (230,230,230)
+            font.render_to(
+                surf,
+                (r.right - 70, r.y + 8),
+                clock_text,
+                fgcolor=time_color
+            )
+
+            # Color grid
+            cell_size = self.rect.height//20
+            gap = 6
+            start_x = r.x + 10
+            start_y = r.bottom - (cell_size*2 + gap + 10)
+
+            color_names = list(COLORS.keys())
+            for j, cname in enumerate(color_names):
+                row = j // 4
+                col = j % 4
+                cx = start_x + col * (cell_size + gap)
+                cy = start_y + row * (cell_size + gap)
+                cell_rect = pg.Rect(cx, cy, cell_size, cell_size)
+
+                # draw color
+                pg.draw.rect(surf, COLORS[cname]["rgb"], cell_rect)
+
+                # owned color
+                if player.Color == cname:
+                    pg.draw.rect(surf, (255,255,255), cell_rect, width=3)
+                # Taken color
+                elif COLORS[cname]["player"] is not None:
+                    pg.draw.rect(surf, (0,0,0), cell_rect, width=2)
+
+                # save rect for click handling
+                self.color_cells[(player.Which_Player, cname)] = cell_rect
+
+                
 class BoardField(UIElement):
 
     def __init__(self, rect: pg.Rect, rows, cols, board):
@@ -224,10 +337,34 @@ class BoardField(UIElement):
 class StatusBar(UIElement):
     def __init__(self, rect: pg.Rect):
         super().__init__(rect)
+        self.message = ""
+
     def render(self, surf, app):
         pg.draw.rect(surf, (50,50,50), self.rect)
-        #ft.SysFont(None, 18).render_to(surf, (self.rect.x+8, self.rect.y+6), fgcolor=(230,230,230))
 
+        font = ft.SysFont(None, 18)
+
+        player = app.board.get_current_player()
+        player_color = player.Color
+        move = app.board.move_number if hasattr(app.board, "move_number") else "?"
+
+        text = f"Turn: Player {player.Which_Player} ({player_color}) | Move: {move}"
+
+        font.render_to(
+            surf,
+            (self.rect.x + 8, self.rect.y + 10),
+            text,
+            fgcolor=(230,230,230)
+        )
+
+        if self.message:
+            font.render_to(
+                surf,
+                (self.rect.right//2, self.rect.y + 10),
+                self.message,
+                fgcolor=(230,230,230)
+            )
+            
 # ---------- App (init + loop) ----------
 class App:
     def __init__(self):
@@ -235,7 +372,7 @@ class App:
         pg.display.set_caption("4-player chess")
         self.screen = pg.display.set_mode((WINDOW_W, WINDOW_H), pg.RESIZABLE)
         self.clock = pg.time.Clock()
-        
+        self.status_timer = 2000
         self.player1=Player(1,"red")
         self.player2=Player(2,"blue")
         self.player3=Player(3,"green")
@@ -245,16 +382,20 @@ class App:
         # UI elements lesznek frameenként újraszámolva rect alapján
         # board wrapper (tárolja a piece_grid és board_fields)
         self.board_panel = BoardField(pg.Rect(0,0,100,100), BOARD_ROWS, BOARD_COLS, self.board)
-        # placeholder left panel, status bar recteket a layout() állítja be
         self.left_panel = LeftPanel(pg.Rect(0,0,100,100))
+        self.menu_bar = MenuBar(
+        pg.Rect(0, 0, int(WINDOW_W*LEFT_PANEL_RATIO), 50),
+        ["New Game", "Save Game", "Load Game"]
+    )
         self.status = StatusBar(pg.Rect(0,0,100,20))
 
     def layout(self):
         w,h = self.screen.get_size()
         left_w = int(w * LEFT_PANEL_RATIO)
+        menu_h=50
         bottom_h = 40
-        left_rect = pg.Rect(0, 0, left_w, h - bottom_h)
-        board_rect = pg.Rect(left_w, 0, w - left_w, h - bottom_h)
+        left_rect = pg.Rect(0, menu_h, left_w, h - bottom_h-menu_h)
+        board_rect = pg.Rect(left_w, menu_h, w - left_w, h - bottom_h-menu_h)
         status_rect = pg.Rect(0, h - bottom_h, w, bottom_h)
         self.left_panel.rect = left_rect
         self.board_panel.rect = board_rect
@@ -269,15 +410,32 @@ class App:
             # propagate to UI elements (order: left panel, board, status)
             self.left_panel.handle_event(ev, self)
             self.board_panel.handle_event(ev, self)
+            self.menu_bar.handle_event(ev, self)
             self.status.handle_event(ev, self)
         return True
 
     def update(self, dt):
-        pass
+        self.status.message=self.board.msg
+        
+
+        if not self.board.is_game_over:
+            if self.status_timer > 0 and self.status.message != "":
+                self.status_timer -= dt
+            else:
+                self.board.msg = ""
+                self.status_timer = 2000
+            
+            player = self.board.get_current_player()
+            player.time_ms = max(0, player.time_ms - dt)
+            if player.time_ms==0:
+                player.IsDefeated=True
+                self.status.message = f"PLAYER {player.Which_Player} is Defeated"
+        
 
     def render(self):
         self.screen.fill((30,30,30))
         # render elemek
+        self.menu_bar.render(self.screen, self)
         self.left_panel.render(self.screen, self)
         self.board_panel.render(self.screen, self)
         self.status.render(self.screen, self)

@@ -23,12 +23,14 @@ except Exception:
 class Board:
     def __init__(self,player1,player2,player3,player4):
         self.board_state = self.empty_board()
+        self.msg=""
         self.player1=player1
         self.player2=player2
         self.player3=player3
         self.player4=player4
         self.current_player_index=1
         self.is_game_over=False
+        self.move_number=1
         self.board_targets=self.empty_board()
         self.selected_figure = None
         self.current_actions: list[Action] = []
@@ -37,6 +39,8 @@ class Board:
     def newgame(self):
         self.board_state = self.empty_board()
         self.is_game_over=False
+        self.move_number=1
+        self.msg=""
         self.player1.startposition()
         self.player2.startposition()
         self.player3.startposition()
@@ -57,7 +61,7 @@ class Board:
             x, y = pos
             self.board_state[x][y] = field_state
     
-    def get_player(self, which):
+    def get_player(self, which) -> Player: # type: ignore
         match which:
             case 1:
                 return self.player1
@@ -68,7 +72,7 @@ class Board:
             case 4:
                 return self.player4
     
-    def get_current_player(self):
+    def get_current_player(self) -> Player:
         return self.get_player(self.current_player_index)
     
 
@@ -398,6 +402,7 @@ class Board:
             if Fig2 is not None:
                 if Fig2.Type == Type.King:
                     player2.IsDefeated = True  # type: ignore
+                    self.msg=f"PLAYER {p2} is Defeated"
                 reward= reward+ Fig2.Type.value*Fig_value_scale
                 player2.remove_figure(Fig2)  # type: ignore
 
@@ -474,7 +479,7 @@ class Board:
         action = self.resolve_action_by_target(to_row, to_col)
         if action is None:
             return False
-
+        
         self.make_move(action)
         self.selected_figure = None
         self.current_actions = []
@@ -487,15 +492,18 @@ class Board:
         next = self.current_player_index+1
         if next==5:
             next=1
+            self.move_number=self.move_number+1
         print("start",start)
         while self.get_player(next).IsDefeated: # type: ignore
             next=next+1
             if next==5:
+                self.move_number=self.move_number+1
                 next=1
             print("next:",next)
             if(next==start):
                 self.is_game_over=True
                 print("GAME OVER, player",start,"won")
+                self.msg=f"PLAYER {start} WON"
                 return
             
         self.current_player_index=next
