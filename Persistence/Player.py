@@ -1,9 +1,11 @@
 from .Figure import Figure
 from .Type import Type
 class Player():
-    def __init__(self, which_player, name=None):
+    def __init__(self, which_player,color=None, name=None):
         self.IsDefeated = False
         self.Score = 0
+        self.Reward=0
+        self.Color=color
         self.Figures: dict[tuple[int, int], Figure] = {}
         self.Which_Player = which_player
         self.name = name if name is not None else f"Player{which_player}"
@@ -13,6 +15,7 @@ class Player():
         self.IsDefeated = False
         self.Figures: dict[tuple[int, int], Figure] = {}
         self.Score = 0
+        self.Reward=0
         match self.Which_Player:
             case 1:
                 self.setup_player1()

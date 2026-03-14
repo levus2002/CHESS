@@ -2,6 +2,7 @@ import pygame as pg
 from pygame import freetype
 import sys
 import pygame.freetype as ft
+from enum import Enum
 
 from Persistence.Board import Board
 from Persistence.Player import Player
@@ -12,22 +13,22 @@ from Persistence.Type import Type
 #|New Game | Save Game |  Load Game|                                                 |
 #----------------------+-------------------------------------------------------------|
 #                      |                                                             |
-# Player1 Username:    |                    [B][H][F][K][V][F][H][B]                 |
-# _________            |                    [G][G][G][G][G][G][G][G]                 |
-# Color:[]             |                    [ ][#][ ][#][ ][#][ ][#]                 |
-#                      |           [B][G][ ][#][ ][#][ ][#][ ][#][ ][#][G][B]        |
-# Player2 Username:    |           [H][G][#][ ][#][ ][#][ ][#][ ][#][ ][G][H]        |
-# _________            |           [F][G][ ][#][ ][#][ ][#][ ][#][ ][#][G][F]        |
-# Color:[]             |           [K][G][#][ ][#][ ][#][ ][#][ ][#][ ][G][V]        |
-#                      |           [V][G][ ][#][ ][#][ ][#][ ][#][ ][#][G][K]        |
-# Player2 Username:    |           [F][G][#][ ][#][ ][#][ ][#][ ][#][ ][G][F]        |
-# _________            |           [H][G][ ][#][ ][#][ ][#][ ][#][ ][#][G][H]        |
-# Color:[]             |           [B][G][#][ ][#][ ][#][ ][#][ ][#][ ][G][B]        |
-#                      |                    [#][ ][#][ ][#][ ][#][ ]                 |
-# Player2 Username:    |                    [G][G][G][G][G][G][G][G]                 |
-# _________            |                    [B][H][F][V][K][F][H][B]                 |
-# Color:[]             |                                                             |
-#                      |                                                             |
+# Player1      TIME    |                    [B][H][F][K][V][F][H][B]                 |
+# COLOR:               |                    [G][G][G][G][G][G][G][G]                 |
+# [][][][]             |                    [ ][#][ ][#][ ][#][ ][#]                 |
+# [][][][]             |           [B][G][ ][#][ ][#][ ][#][ ][#][ ][#][G][B]        |
+# Player2      TIME    |           [H][G][#][ ][#][ ][#][ ][#][ ][#][ ][G][H]        |
+# COLOR:               |           [F][G][ ][#][ ][#][ ][#][ ][#][ ][#][G][F]        |
+# [][][][]             |           [K][G][#][ ][#][ ][#][ ][#][ ][#][ ][G][V]        |
+# [][][][]             |           [V][G][ ][#][ ][#][ ][#][ ][#][ ][#][G][K]        |
+# Player3      TIME    |           [F][G][#][ ][#][ ][#][ ][#][ ][#][ ][G][F]        |
+# COLOR:               |           [H][G][ ][#][ ][#][ ][#][ ][#][ ][#][G][H]        |
+# [][][][]             |           [B][G][#][ ][#][ ][#][ ][#][ ][#][ ][G][B]        |
+# [][][][]             |                    [#][ ][#][ ][#][ ][#][ ]                 |
+# Player4      TIME    |                    [G][G][G][G][G][G][G][G]                 |
+# COLOR:               |                    [B][H][F][V][K][F][H][B]                 |
+# [][][][]             |                                                             |
+# [][][][]             |                                                             |
 #----------------------+-------------------------------------------------------------+
 #Státuszsor  lépés, idő ilyesmi                                                      |
 #------------------------------------------------------------------------------------+
@@ -50,11 +51,22 @@ UNICODE_PIECES = {
     # világos változat ♔ ♕ ♖ ♗ ♘ ♙
     # sötét változat : ♚ ♛ ♜ ♝ ♞ ♟
 }
+COLORS = {
+    "red": {"player": 1, "rgb": (220, 50, 47)},
+    "blue": {"player": 2, "rgb": (38, 139, 210)},
+    "green": {"player": 3, "rgb": (133, 153, 0)},
+    "purple": {"player": 4, "rgb": (108, 113, 196)},
+    "orange": {"player": None, "rgb": (203, 75, 22)},
+    "teal": {"player": None, "rgb": (42, 161, 152)},
+    "magenta": {"player": None, "rgb": (211, 54, 130)},
+    "brown": {"player": None, "rgb": (133, 94, 66)}
+}
+
 PLAYER_COLORS = {
-    1: (200, 40, 40),   # piros / player1
-    2: (40, 80, 200),   # kék / player2
-    3: (40, 140, 40),   # sötét zöld / player3
-    4: (120, 40, 140),  # lila / player4
+    1: "red" ,
+    2: "blue", 
+    3: "green",   
+    4: "purple",
 }
 SQUARE_LIGHT = (220, 220, 220)   # világos szürke
 SQUARE_DARK = (170, 170, 170)    # sötétebb szürke
@@ -65,8 +77,6 @@ TARGET_BORDER = {
     2: (144, 238, 144), # move: világos zöld
     3: (200, 40, 40),   # capture: piros
 }
-#
-# Nem szeretném megjelenítés közben számolni, hogy mező milyen színű illetve, hogy a tábla része-e
 # -1 nem a tábla része
 # 0 világos mező
 # 1 sötét mező
@@ -204,7 +214,7 @@ class BoardField(UIElement):
                 bbox = piece_font.get_rect(ch)
                 px = int(board_px + c*cell_size + cell_size/2 - bbox.width//2)
                 py = int(board_py + r*cell_size + cell_size/2 - bbox.height//2)
-                fg = PLAYER_COLORS[entry]
+                fg = COLORS[self.board.get_player(entry).Color]["rgb"]
                 piece_font.render_to(surf, (px, py), ch, fgcolor=fg)   
             
                 
@@ -226,10 +236,10 @@ class App:
         self.screen = pg.display.set_mode((WINDOW_W, WINDOW_H), pg.RESIZABLE)
         self.clock = pg.time.Clock()
         
-        self.player1=Player(1)
-        self.player2=Player(2)
-        self.player3=Player(3)
-        self.player4=Player(4)
+        self.player1=Player(1,"red")
+        self.player2=Player(2,"blue")
+        self.player3=Player(3,"green")
+        self.player4=Player(4,"purple")
         self.board=Board(self.player1, self.player2, self.player3, self.player4)
         self.newgame()
         # UI elements lesznek frameenként újraszámolva rect alapján

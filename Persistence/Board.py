@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from .Figure import Figure
+from .Player import Player
 from .Type import Type
+import numpy as np
 
 @dataclass(frozen=True)
 class Action:
@@ -9,6 +11,14 @@ class Action:
     to_row: int
     to_col: int
     special: object = None
+
+Fig_value_scale=0.02
+    
+try:
+    import torch
+    _HAS_TORCH = True
+except Exception:
+    _HAS_TORCH = False
 
 class Board:
     def __init__(self,player1,player2,player3,player4):
@@ -61,29 +71,37 @@ class Board:
     def get_current_player(self):
         return self.get_player(self.current_player_index)
     
-    def next_player(self):
-        start=self.current_player_index
-        next = self.current_player_index+1
-        if next==5:
-            next=1
-        print("start",start)
-        while self.get_player(next).IsDefeated: # type: ignore
-            next=next+1
-            if next==5:
-                next=1
-            print("next:",next)
-            if(next==start):
-                self.is_game_over=True
-                print("GAME OVER, player",start,"won")
-                return
-            
-        self.current_player_index=next
 
-
-    def get_figure(self,x,y):
+    def get_figure(self,x,y) -> Figure:
         p=self.board_state[x][y]
         player=self.get_player(p)
         return player.get_figure(x,y) # type: ignore
+    
+
+    def ispromotion(self, row, col, player_id) -> bool:
+        if row==0 or row==13 or col==0 or col==13:
+                return True
+        if (player_id==1 and row>=7)or (player_id==2 and col<=6) or (player_id==3 and row<=6) or (player_id==4 and col>=7):
+            return True
+        return False
+    
+    def empty_board(self):
+        return [
+    [-1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1],
+    [-1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1],
+    [-1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [-1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1],
+    [-1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1],
+    [-1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1]]
+
 
     def select_figure(self, x, y):
         fig = self.get_figure(x, y)
@@ -264,12 +282,14 @@ class Board:
         elif figure.Type == Type.Pawn:
             directions = [ (1,0),(0,-1),(-1,0),(0,1) ]
             dr,dc = directions[player_id-1]
-
+            actn=None
             nr = r + dr
             nc = c + dc
             if in_bounds(nr, nc) and not is_blocked(nr, nc):
                 if self.board_state[nr][nc] == 0:
-                    actions.append(Action(r, c, nr, nc, None))
+                    if self.ispromotion(nr,nc,player_id):
+                        actn="Promotion"
+                    actions.append(Action(r, c, nr, nc, actn))
 
 
                     if not figure.HasMoved:
@@ -286,7 +306,9 @@ class Board:
                 if in_bounds(nr, nc) and not is_blocked(nr, nc):
                     occupant = self.board_state[nr][nc]
                     if occupant != 0 and occupant != figure.Player:
-                        actions.append(Action(r, c, nr, nc, "capture"))
+                        if self.ispromotion(nr,nc,player_id):
+                            actn="Promotion"
+                        actions.append(Action(r, c, nr, nc, actn))
 
         return actions
     
@@ -325,36 +347,45 @@ class Board:
             moves.extend(fig_actions)
         return moves
     
+    def make_hitmap(self, player_id):
+        hitmap = self.empty_board()
+        opponent_actions= []
+        for i in range(1,5):
+            if i == player_id or self.get_player(i).IsDefeated: # type: ignore
+                continue
+            player_actions=self.get_all_moves(i)
+            opponent_actions.extend(player_actions)
+        for action in opponent_actions:
+            row, col = action.from_row, action.from_col
+            newrow, newcol = action.to_row, action.to_col
+            fig=self.get_figure(row,col)
+            type=fig.Type 
+            if hitmap[newrow][newcol]==0:
+                hitmap[newrow][newcol]=type.value
+            elif hitmap[newrow][newcol]>0:
+                hitmap[newrow][newcol]=min(hitmap[newrow][newcol], type.value)
+        return hitmap 
     
-    
-    def empty_board(self):
-        return [
-    [-1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1],
-    [-1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1],
-    [-1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [-1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1],
-    [-1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1],
-    [-1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1]]
+    def make_protectmap(self, player_id):
+        protectmap=self.empty_board()
+        actions=self.get_all_moves(player_id)
+        for action in actions:
+            newrow, newcol = action.to_row, action.to_col
+            protectmap[newrow][newcol]=1
+        return protectmap
+        
 
 
     def make_move(self, action: Action):
         row, col = action.from_row, action.from_col
         newrow, newcol = action.to_row, action.to_col
-
+        reward=0
         p1 = self.board_state[row][col]
         if p1 == 0:
             print("ERROR: Nincs bábu a mezőn")
             return
         player1 = self.get_player(p1)
-        Fig1 = player1.get_figure(row, col)  # type: ignore
+        Fig1 = player1.get_figure(row, col)   # type: ignore
         if Fig1 is None:
             print("ERROR: játékosnak nincs ilyen bábuja")
             return
@@ -367,6 +398,7 @@ class Board:
             if Fig2 is not None:
                 if Fig2.Type == Type.King:
                     player2.IsDefeated = True  # type: ignore
+                reward= reward+ Fig2.Type.value*Fig_value_scale
                 player2.remove_figure(Fig2)  # type: ignore
 
         # remove from current player container, move, add back
@@ -377,6 +409,9 @@ class Board:
         # update board_state grid
         self.board_state[newrow][newcol] = p1
         self.board_state[row][col] = 0
+        
+        if action.special =="Promotion":
+            reward = reward + (Fig1.Type.value-1)* Fig_value_scale
         
         if action.special=="KingCastle":
             rookrow,rookcol=0,0
@@ -399,6 +434,7 @@ class Board:
             player1.add_figure(Fig3) # type: ignore
             self.board_state[newrookrow][newrookcol] = p1
             self.board_state[rookrow][rookcol] = 0
+            reward=reward+0.01
             
         if action.special=="QueenCastle":
             rookrow,rookcol=0,0
@@ -421,8 +457,17 @@ class Board:
             player1.add_figure(Fig3) # type: ignore
             self.board_state[newrookrow][newrookcol] = p1
             self.board_state[rookrow][rookcol] = 0
+            reward=reward+0.01
         
-
+        hitmap=self.make_hitmap(p1)
+        protectmap=self.make_protectmap(p1)
+        hit_value=hitmap[newrow][newcol]
+        if hit_value>0:
+            if protectmap[newrow][newcol]==1:
+                reward = reward - min(0,hit_value-Fig1.Type.value)*Fig_value_scale
+            else:
+                reward = reward - Fig1.Type.value * Fig_value_scale
+        self.get_player(p1).Reward = reward # type: ignore
         self.next_player()
         
     def try_move(self, to_row: int, to_col: int) -> bool:
@@ -436,3 +481,71 @@ class Board:
         self.action_lookup = {}
         self.board_targets = self.empty_board()
         return True
+   
+    def next_player(self):
+        start=self.current_player_index
+        next = self.current_player_index+1
+        if next==5:
+            next=1
+        print("start",start)
+        while self.get_player(next).IsDefeated: # type: ignore
+            next=next+1
+            if next==5:
+                next=1
+            print("next:",next)
+            if(next==start):
+                self.is_game_over=True
+                print("GAME OVER, player",start,"won")
+                return
+            
+        self.current_player_index=next
+
+
+
+
+
+
+
+    def encode_state(self, include_extras=True):  
+        H, W = 14, 14
+        # C*H*W = 29*14*14 3d numpy Tenzor
+        # minden játékos minden figura típusához layer, 4*6=24
+        #4 layer one-hot encoding, melyik player van soron
+        #1 layer ahol mező értéke 1, ha még nem mozgott. sánc, gyalog duplalépés ilyesmi
+        # channel count here: 24 + 4 + 1 = 29
+        C = 29
+        tensor = np.zeros((C, H, W), dtype=np.float32)
+        # figura typusok sorrendje
+        piece_index = {
+            Type.Pawn: 0,
+            Type.Knight: 1,
+            Type.Bishop: 2,
+            Type.Rook: 3,
+            Type.Queen: 4,
+            Type.King: 5
+        }
+
+        for player_id in range(1, 5):
+            player = self.get_player(player_id)
+            for pos in player.get_figure_pos_list():  # type: ignore
+                r, c = pos
+                fig = player.get_figure(r, c)  # type: ignore
+                if fig is None:
+                    continue
+                pidx = piece_index.get(fig.Type, None)
+                if pidx is None:
+                    continue
+                chan = (player_id - 1) * 6 + pidx
+                tensor[chan, r, c] = 1.0
+                if include_extras and getattr(fig, "HasMoved", False):
+                    tensor[28, r, c] = 1.0
+
+        cur = self.current_player_index
+        if 1 <= cur <= 4:
+            tensor[24 + (cur - 1), :, :] = 1.0
+
+
+        return tensor
+
+
+
