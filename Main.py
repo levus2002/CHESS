@@ -38,7 +38,7 @@ WINDOW_W, WINDOW_H = 1200, 720
 FPS = 20
 
 # relatív elrendezés
-LEFT_PANEL_RATIO = 0.25  # menü / player panel szélessége az ablakhoz képest
+LEFT_PANEL_RATIO = 0.31  # menü / player panel szélessége az ablakhoz képest
 RIGHT_PANEL_RATIO = 1.0 - LEFT_PANEL_RATIO
 
 # board méret
@@ -138,12 +138,13 @@ class MenuBar(UIElement):
                     return
 
     def render(self, surf, app):
+        pg.draw.rect(surf, (50,50,50), self.rect)
         self.button_rects.clear()
         font = ft.SysFont(None, 18)
         gap = 8
         x = self.rect.x + 10
         y = self.rect.y + 10
-        btn_h = 28
+        btn_h = 32
 
         for text in self.buttons:
             btn_w = font.get_rect(text).width + 16
@@ -152,6 +153,8 @@ class MenuBar(UIElement):
             font.render_to(surf, (x + 8, y + 6), text, fgcolor=(230,230,230))
             self.button_rects[text] = rect
             x += btn_w + gap
+        
+         
             
 class LeftPanel(UIElement):
     def __init__(self, rect: pg.Rect):
@@ -177,7 +180,7 @@ class LeftPanel(UIElement):
 
     def render(self, surf, app):
         # Background
-        pg.draw.rect(surf, (40,40,40), self.rect)
+        pg.draw.rect(surf, (50,50,50), self.rect)
 
 
         card_h = self.rect.height // 4
@@ -252,35 +255,78 @@ class BoardField(UIElement):
         self.rows = rows; self.cols = cols
         self.board=board
         self.selected = None
+        self.pending_move=None
         self.padding_px = 8
 
     def compute_layout(self):
-        # padding dinamikusan: kis százalék, de legalább 8px
-        pad = max(8, int(min(self.rect.width, self.rect.height) * 0.02))
-        side = min(self.rect.width, self.rect.height) - 2*pad
+        base_pad = max(58, int(min(self.rect.width, self.rect.height) * 0.02))
+
+
+        extra_top = base_pad 
+
+        available_height = self.rect.height - base_pad - extra_top
+        available_width = self.rect.width - 2 * base_pad
+
+        side = min(available_width, available_height)
+
         if side <= 0:
             side = min(self.rect.width, self.rect.height)
-            pad = 0
+            base_pad = 0
+            extra_top = 0
+
         cell_size = side / self.cols
+
+
+        extra_top = cell_size * 1.2  
         board_px = self.rect.x + (self.rect.width - side) / 2
-        board_py = self.rect.y + (self.rect.height - side) / 2
-        return pad, side, cell_size, board_px, board_py
+        board_py = self.rect.y + extra_top
+
+        return base_pad, side, cell_size, board_px, board_py
 
     def handle_event(self, ev, app):
         current=self.board.current_player_index
         if ev.type==pg.MOUSEBUTTONDOWN and ev.button==1 and self.rect.collidepoint(ev.pos) and not self.board.is_game_over:
             mx,my = ev.pos
             pad, side, cell_size, board_px, board_py = self.compute_layout()
+            start_col = (self.cols // 2) - 2
+
+            for i in range(4):
+                col = start_col + i
+                x = int(board_px + col * cell_size)
+                y = int(board_py - cell_size * 1.1)
+
+                rect = pg.Rect(x, y, int(cell_size), int(cell_size))
+
+                if rect.collidepoint(mx, my):
+                    promotions = ["N", "B", "R", "Q"]
+                    chosen = promotions[i]
+                    print(promotions[i]," clicked")
+                    if self.pending_move is None:return
+                    row, col = self.pending_move
+                    moved = self.board.try_move(row, col, chosen)
+
+                    self.pending_move = None
+                    self.selected = None
+                    return
             rel_x = mx - board_px; rel_y = my - board_py
             col = int(rel_x // cell_size); row = int(rel_y // cell_size)
             if 0 <= row < self.rows and 0 <= col < self.cols and board_fields[row][col] != -1:
                 entry = self.board.board_state[row][col]
                 print(entry)
+                if self.board.ispromoting :
+                    if entry==current and (row,col)!=self.selected:
+                      self.selected = (row, col)
+                      self.pending_move = None
+                      self.board.ispromoting=False
                 if self.board.selected_figure is None:
                     if entry == current:
                         self.selected = (row, col)
                         self.board.select_figure(row, col)
                 else:
+                    if self.board.ispromoting:
+                        self.pending_move = (row, col)
+                        return
+                    
                     moved = self.board.try_move(row, col)
                     if moved:
                         self.selected = None
@@ -288,6 +334,7 @@ class BoardField(UIElement):
                         if entry == current:
                             self.selected = (row, col)
                             self.board.select_figure(row, col)
+                            self.pending_move = None
                         else:
                             self.selected = None
                             self.board.board_targets = self.board.empty_board()      
@@ -295,13 +342,15 @@ class BoardField(UIElement):
                 print("Board clicked cell:", (row,col))
             else:
                 self.selected = None
+                self.board.ispromoting=False
+                self.pending_move=None
                 self.board.board_targets = self.board.empty_board()
                 print("Click outside playable board or on OOB cell.")
     
     def render(self, surf, app):
         pad, side, cell_size, board_px, board_py = self.compute_layout()
         # board background
-        pg.draw.rect(surf, (60,60,60), self.rect)
+        pg.draw.rect(surf, (50,50,50), self.rect)
         # squares
         for r in range(self.rows):
             for c in range(self.cols):
@@ -350,7 +399,37 @@ class BoardField(UIElement):
                 px = int(board_px + c*cell_size + cell_size/2 - bbox.width//2)
                 py = int(board_py + r*cell_size + cell_size/2 - bbox.height//2)
                 fg = COLORS[self.board.get_player(entry).Color]["rgb"]
-                piece_font.render_to(surf, (px, py), ch, fgcolor=fg)   
+                piece_font.render_to(surf, (px, py), ch, fgcolor=fg)
+        if self.board.ispromoting:
+            start_col = (self.cols // 2) - 2
+
+            for i in range(4):
+                col = start_col + i
+
+                x = int(board_px + col * cell_size)
+                y = int(board_py - cell_size * 1.1)
+
+                rect = pg.Rect(x, y, int(cell_size), int(cell_size))
+
+                pg.draw.rect(surf, (200, 200, 200), rect)
+                pg.draw.rect(surf, (200, 200, 200), rect, width=1)
+
+                figs = [
+                    UNICODE_PIECES["N"],
+                    UNICODE_PIECES["B"],
+                    UNICODE_PIECES["R"],
+                    UNICODE_PIECES["Q"]
+                ]
+
+                text = figs[i]
+                font_sz = max(12, int(cell_size * 0.8))
+                piece_font = ft.SysFont("Segoe UI Symbol", font_sz)
+
+                text_rect = piece_font.get_rect(text)
+                text_rect.center = rect.center
+
+                color = COLORS[app.board.get_current_player().Color]["rgb"]
+                piece_font.render_to(surf, text_rect, text, color)
             
                 
 
@@ -362,7 +441,7 @@ class StatusBar(UIElement):
         self.message = ""
 
     def render(self, surf, app):
-        pg.draw.rect(surf, (50,50,50), self.rect)
+        pg.draw.rect(surf, (30,30,30), self.rect)
 
         font = ft.SysFont(None, 18)
 
@@ -395,10 +474,10 @@ class App:
         self.screen = pg.display.set_mode((WINDOW_W, WINDOW_H), pg.RESIZABLE)
         self.clock = pg.time.Clock()
         self.status_timer = 2000
-        self.player1=Player(1,"red")
-        self.player2=Player(2,"blue")
-        self.player3=Player(3,"green")
-        self.player4=Player(4,"purple")
+        self.player1=Player(1,"manual","red")
+        self.player2=Player(2,"manual","blue")
+        self.player3=Player(3,"random","green")
+        self.player4=Player(4,"random","purple")
         self.board=Board(self.player1, self.player2, self.player3, self.player4)
         self.newgame()
         # UI elements lesznek frameenként újraszámolva rect alapján
@@ -406,7 +485,7 @@ class App:
         self.board_panel = BoardField(pg.Rect(0,0,100,100), BOARD_ROWS, BOARD_COLS, self.board)
         self.left_panel = LeftPanel(pg.Rect(0,0,100,100))
         self.menu_bar = MenuBar(
-        pg.Rect(0, 0, int(WINDOW_W*LEFT_PANEL_RATIO), 50),
+        pg.Rect(0, 0, int(WINDOW_W*LEFT_PANEL_RATIO*1.5), 50),
         ["New Game", "Save Game", "Load Game"]
     )
         self.status = StatusBar(pg.Rect(0,0,100,20))
@@ -417,7 +496,7 @@ class App:
         menu_h=50
         bottom_h = 40
         left_rect = pg.Rect(0, menu_h, left_w, h - bottom_h-menu_h)
-        board_rect = pg.Rect(left_w, menu_h, w - left_w, h - bottom_h-menu_h)
+        board_rect = pg.Rect(left_w, 0, w - left_w, h - bottom_h)
         status_rect = pg.Rect(0, h - bottom_h, w, bottom_h)
         self.left_panel.rect = left_rect
         self.board_panel.rect = board_rect
@@ -452,14 +531,16 @@ class App:
             if player.time_ms==0:
                 player.IsDefeated=True
                 self.status.message = f"PLAYER {player.Which_Player} is Defeated"
+                self.board.next_player()
         
 
     def render(self):
         self.screen.fill((30,30,30))
         # render elemek
-        self.menu_bar.render(self.screen, self)
+       
         self.left_panel.render(self.screen, self)
         self.board_panel.render(self.screen, self)
+        self.menu_bar.render(self.screen, self)
         self.status.render(self.screen, self)
         pg.display.flip()
 

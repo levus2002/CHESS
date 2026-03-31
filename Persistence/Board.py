@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import random
 from .Figure import Figure
 from .Player import Player
 from .Type import Type
@@ -11,6 +12,7 @@ class Action:
     to_row: int
     to_col: int
     special: object = None
+    promotion: object = None    
 
 Fig_value_scale=0.02
     
@@ -34,6 +36,7 @@ class Board:
         self.move_number=1
         self.board_targets=self.empty_board()
         self.selected_figure = None
+        self.en_passants = [] 
         self.current_actions: list[Action] = []
         self.action_lookup: dict[tuple[int,int], list[Action]] = {}
     
@@ -50,6 +53,7 @@ class Board:
         self.setupboard_state()
         self.current_player_index=1
         self.board_targets=self.empty_board()
+        self.en_passants = [] 
         
     
     def setupboard_state(self):
@@ -128,13 +132,19 @@ class Board:
         self.board_targets = self.actions_to_board_targets(self.current_actions)
 
 
-    def resolve_action_by_target(self, to_row: int, to_col: int) -> Action | None:
+    def resolve_action_by_target(self, to_row: int, to_col: int, promotion=None) -> Action | None:
         lst = self.action_lookup.get((to_row, to_col))
         if not lst:
             return None
-        if len(lst) == 1:
-            return lst[0]
-        return lst[0]
+
+        if promotion is None:
+            return lst[0]  # normal moves
+
+        for act in lst:
+            if act.promotion == promotion:
+                return act
+
+        return None
 
 
     def get_moves(self, figure: Figure):
@@ -154,12 +164,12 @@ class Board:
         def handle_square_for_slides(nr, nc):
             occupant = self.board_state[nr][nc]
             if occupant == 0:
-                actions.append(Action(r, c, nr, nc, None))
+                actions.append(Action(r, c, nr, nc, None, None))
                 return True   # keep sliding
             elif occupant == player_id:
                 return False  # own piece -> stop
             else:
-                actions.append(Action(r, c, nr, nc, "capture"))
+                actions.append(Action(r, c, nr, nc, None, None))
                 return False  # capture -> stop
 
         # ---------------- ROOK ----------------
@@ -209,9 +219,9 @@ class Board:
                 if in_bounds(nr,nc) and not is_blocked(nr,nc):
                     occupant = self.board_state[nr][nc]
                     if occupant == 0:
-                        actions.append(Action(r, c, nr, nc, None))
+                        actions.append(Action(r, c, nr, nc, None, None))
                     elif occupant != player_id:
-                        actions.append(Action(r, c, nr, nc, "capture"))
+                        actions.append(Action(r, c, nr, nc, None, None))
 
         # ---------------- KING ----------------
         elif figure.Type == Type.King:
@@ -224,9 +234,9 @@ class Board:
                 if in_bounds(nr,nc) and not is_blocked(nr,nc):
                     occupant = self.board_state[nr][nc]
                     if occupant == 0:
-                        actions.append(Action(r, c, nr, nc, None))
+                        actions.append(Action(r, c, nr, nc, None, None))
                     elif occupant != player_id:
-                        actions.append(Action(r, c, nr, nc, "capture"))
+                        actions.append(Action(r, c, nr, nc, None, None))
             # ---------------- KingCastle ----------------
             if figure.HasMoved==False:
                 match player_id:
@@ -235,25 +245,25 @@ class Board:
                             if self.board_state[0][3]==player_id:
                                 F= player.get_figure(0,3) # type: ignore
                                 if F.Type==Type.Rook and F.HasMoved==False:
-                                    actions.append(Action(r, c, 0, 4, "KingCastle"))
+                                    actions.append(Action(r, c, 0, 4, "KingCastle", None))
                     case 4:
                         if self.board_state[5][0]==0 and self.board_state[4][0]==0:
                             if self.board_state[3][0]==player_id:
                                 F= player.get_figure(3,0) # type: ignore
                                 if F.Type==Type.Rook and F.HasMoved==False:
-                                    actions.append(Action(r, c, 4, 0, "KingCastle"))
+                                    actions.append(Action(r, c, 4, 0, "KingCastle", None))
                     case 2:
                         if self.board_state[8][13]==0 and self.board_state[9][13]==0:
                             if self.board_state[10][13]==player_id:
                                 F= player.get_figure(10,13) # type: ignore
                                 if F.Type==Type.Rook and F.HasMoved==False:
-                                    actions.append(Action(r, c, 9, 13, "KingCastle"))
+                                    actions.append(Action(r, c, 9, 13, "KingCastle", None))
                     case 3:
                         if self.board_state[13][8]==0 and self.board_state[13][9]==0:
                             if self.board_state[13][10]==player_id:
                                 F= player.get_figure(13,10) # type: ignore
                                 if F.Type==Type.Rook and F.HasMoved==False:
-                                    actions.append(Action(r, c, 13, 9, "KingCastle"))
+                                    actions.append(Action(r, c, 13, 9, "KingCastle", None))
             # ---------------- QueenCastle ----------------
             if figure.HasMoved==False:
                 match player_id:
@@ -262,25 +272,25 @@ class Board:
                             if self.board_state[0][10]==player_id:
                                 F= player.get_figure(0,10) # type: ignore
                                 if F.Type==Type.Rook and F.HasMoved==False:
-                                    actions.append(Action(r, c, 0, 8, "QueenCastle"))
+                                    actions.append(Action(r, c, 0, 8, "QueenCastle", None))
                     case 4:
                         if self.board_state[7][0]==0 and self.board_state[8][0]==0 and self.board_state[9][0]==0:
                             if self.board_state[10][0]==player_id:
                                 F= player.get_figure(10,0) # type: ignore
                                 if F.Type==Type.Rook and F.HasMoved==False:
-                                    actions.append(Action(r, c, 8, 0, "QueenCastle"))
+                                    actions.append(Action(r, c, 8, 0, "QueenCastle", None))
                     case 2:
                         if self.board_state[6][13]==0 and self.board_state[5][13]==0 and self.board_state[4][13]==0:
                             if self.board_state[3][13]==player_id:
                                 F= player.get_figure(3,13) # type: ignore
                                 if F.Type==Type.Rook and F.HasMoved==False:
-                                    actions.append(Action(r, c, 5, 13, "QueenCastle"))
+                                    actions.append(Action(r, c, 5, 13, "QueenCastle", None))
                     case 3:
                         if self.board_state[13][6]==0 and self.board_state[13][5]==0 and self.board_state[13][4]==0:
                             if self.board_state[13][3]==player_id:
                                 F= player.get_figure(13,3) # type: ignore
                                 if F.Type==Type.Rook and F.HasMoved==False:
-                                    actions.append(Action(r, c, 13, 5, "QueenCastle"))                                
+                                    actions.append(Action(r, c, 13, 5, "QueenCastle", None))                                
                             
             
 
@@ -294,16 +304,20 @@ class Board:
             if in_bounds(nr, nc) and not is_blocked(nr, nc):
                 if self.board_state[nr][nc] == 0:
                     if self.ispromotion(nr,nc,player_id):
-                        actn="Promotion"
-                    actions.append(Action(r, c, nr, nc, actn))
-
+                        #actn="Promotion"
+                        actions.append(Action(r, c, nr, nc, actn,"N"))
+                        actions.append(Action(r, c, nr, nc, actn,"B"))
+                        actions.append(Action(r, c, nr, nc, actn,"R"))
+                        actions.append(Action(r, c, nr, nc, actn,"Q"))
+                    else:
+                        actions.append(Action(r, c, nr, nc, actn, None))
 
                     if not figure.HasMoved:
                         nr2 = r + 2*dr
                         nc2 = c + 2*dc
                         if in_bounds(nr2, nc2) and not is_blocked(nr2, nc2):
                             if self.board_state[nr2][nc2] == 0:
-                                actions.append(Action(r, c, nr2, nc2, "double"))
+                                actions.append(Action(r, c, nr2, nc2, "double", None))
 
             side_dirs = [(-dc, dr), (dc, -dr)]
             for sdr, sdc in side_dirs:
@@ -311,27 +325,32 @@ class Board:
                 nc = c + dc + sdc
                 if in_bounds(nr, nc) and not is_blocked(nr, nc):
                     occupant = self.board_state[nr][nc]
-                    if occupant != 0 and occupant != figure.Player:
+                    is_en_passant = any(
+                    ep["target"] == (nr, nc) and ep["player"] != player_id
+                    for ep in self.en_passants)
+                    if (occupant != 0 and occupant != figure.Player) or is_en_passant:
+                        if is_en_passant:
+                            actn="en_passant"
                         if self.ispromotion(nr,nc,player_id):
-                            actn="Promotion"
-                        actions.append(Action(r, c, nr, nc, actn))
+                        #actn="Promotion"
+                            actions.append(Action(r, c, nr, nc, actn,"N"))
+                            actions.append(Action(r, c, nr, nc, actn,"B"))
+                            actions.append(Action(r, c, nr, nc, actn,"R"))
+                            actions.append(Action(r, c, nr, nc, actn,"Q"))
+                        else:
+                            actions.append(Action(r, c, nr, nc, actn, None))
 
         return actions
     
-    
-    # a kiválasztott bábu melyik mezőkre tud lépni illetve ütni
-    # -1 nem a tábla része
-    # 0 nem érintett mező nincs keret/fekete keret 
-    # 1 kiválasztott bábu itt áll mező sötét zöld keret
-    # 2 kiválasztott bábu ide tud lépni, világosabb zöld keret
-    # 3 kiválasztott bábu az itt álló bábut ütni tudja piros keret
-    # 4 kiválasztott gyalog ha idelép akkor előléptetődik
+
     def actions_to_board_targets(self, actions, highlight_from=True):
+        self.ispromoting=False
         board_targetset = self.empty_board()
         for a in actions:
             if highlight_from:
                 board_targetset[a.from_row][a.from_col] = 1
-            if a.special == "promotion":
+            if a.promotion is not None:
+                self.ispromoting = True
                 board_targetset[a.to_row][a.to_col] = 4
             else:
                 if 0 <= a.to_row < len(board_targetset) and 0 <= a.to_col < len(board_targetset[0]):
@@ -340,11 +359,10 @@ class Board:
                         board_targetset[a.to_row][a.to_col] = 3
                     else:
                         board_targetset[a.to_row][a.to_col] = 2
-                    fromrow,fromcol=a.from_row,a.from_col
-                    p=self.board_state[fromrow][fromcol]
-                    if self.ispromotion(a.to_row, a.to_col,p ):
-                        if self.get_figure(fromrow,fromcol).Type==Type.Pawn:
-                            board_targetset[a.to_row][a.to_col] = 4
+                    if a.special=="en_passant":
+                        board_targetset[a.to_row][a.to_col] = 3
+
+
         return board_targetset
     
     def get_all_moves(self, player_index: int):
@@ -403,16 +421,46 @@ class Board:
             return
 
 
-        p2 = self.board_state[newrow][newcol]
-        if p2 > 0 and p2 != p1:
+        if action.special=="double":
+            self.en_passants.append({
+            "target": ((row+newrow)//2, (col+newcol)//2),
+            "pawn": (newrow, newcol),
+            "player": p1
+            })
+            print("passant start")        
+        ep_capture = next(
+        (
+            ep for ep in self.en_passants
+            if ep["target"] == (newrow, newcol)
+            and (
+                abs(ep["pawn"][0] - row) + abs(ep["pawn"][1] - col) <= 1
+            )
+            and ep["player"] != p1
+        ),
+        None
+        )
+        
+        if ep_capture is not None:
+            p2=ep_capture["player"]
             player2 = self.get_player(p2)
-            Fig2 = player2.get_figure(newrow, newcol)  # type: ignore
+            Fig2 = player2.get_figure(*ep_capture["pawn"])
+            self.board_state[ep_capture["pawn"][0]][ep_capture["pawn"][1]] = 0
             if Fig2 is not None:
-                if Fig2.Type == Type.King:
-                    player2.IsDefeated = True  # type: ignore
-                    self.msg=f"PLAYER {p2} is Defeated"
-                reward= reward+ Fig2.Type.value*Fig_value_scale
+                reward = reward + Fig2.Type.value*Fig_value_scale
                 player2.remove_figure(Fig2)  # type: ignore
+        else:
+            p2 = self.board_state[newrow][newcol]
+            if p2 > 0 and p2 != p1: # type: ignore
+                player2 = self.get_player(p2)
+                Fig2 = player2.get_figure(newrow, newcol)  # type: ignore
+                if Fig2 is not None:
+                    if Fig2.Type == Type.King:
+                        player2.IsDefeated = True  # type: ignore
+                        self.msg=f"PLAYER {p2} is Defeated"
+                    reward = reward + Fig2.Type.value*Fig_value_scale
+                    player2.remove_figure(Fig2)  # type: ignore
+
+
 
         # remove from current player container, move, add back
         player1.remove_figure(Fig1)  # type: ignore
@@ -423,7 +471,16 @@ class Board:
         self.board_state[newrow][newcol] = p1
         self.board_state[row][col] = 0
         
-        if action.special =="Promotion":
+        if action.promotion is not None:
+            match action.promotion:
+                case "N":
+                    Fig1.Type=Type.Knight
+                case "B":
+                    Fig1.Type=Type.Bishop
+                case "R":
+                    Fig1.Type=Type.Rook
+                case "Q":
+                    Fig1.Type=Type.Queen
             reward = reward + (Fig1.Type.value-1)* Fig_value_scale
         
         if action.special=="KingCastle":
@@ -471,7 +528,9 @@ class Board:
             self.board_state[newrookrow][newrookcol] = p1
             self.board_state[rookrow][rookcol] = 0
             reward=reward+0.01
+
         
+
         hitmap=self.make_hitmap(p1)
         protectmap=self.make_protectmap(p1)
         hit_value=hitmap[newrow][newcol]
@@ -483,8 +542,8 @@ class Board:
         self.get_player(p1).Reward = reward # type: ignore
         self.next_player()
         
-    def try_move(self, to_row: int, to_col: int) -> bool:
-        action = self.resolve_action_by_target(to_row, to_col)
+    def try_move(self, to_row: int, to_col: int, promotion=None) -> bool:
+        action = self.resolve_action_by_target(to_row, to_col, promotion)
         if action is None:
             return False
         
@@ -492,6 +551,7 @@ class Board:
         self.selected_figure = None
         self.current_actions = []
         self.action_lookup = {}
+        self.ispromoting=False
         self.board_targets = self.empty_board()
         return True
    
@@ -513,8 +573,16 @@ class Board:
                 print("GAME OVER, player",start,"won")
                 self.msg=f"PLAYER {start} WON"
                 return
-            
+
         self.current_player_index=next
+        self.en_passants = [
+            ep for ep in self.en_passants
+            if ep["player"] != self.current_player_index
+        ]
+        if self.get_current_player().Control=="random":
+            actions=self.get_all_moves(next)
+            action = random.randint(0,len(actions)-1)
+            self.make_move(actions[action])
 
 
 

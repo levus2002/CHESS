@@ -1,7 +1,7 @@
 from .Figure import Figure
 from .Type import Type
 class Player():
-    def __init__(self, which_player,color=None,start_time_sec=900, name=None):
+    def __init__(self, which_player,control="manual",color=None,start_time_sec=900, name=None):
         self.IsDefeated = False
         self.Score = 0
         self.Reward=0
@@ -9,6 +9,7 @@ class Player():
         self.time_ms = start_time_sec * 1000
         self.Figures: dict[tuple[int, int], Figure] = {}
         self.Which_Player = which_player
+        self.Control=control
         self.name = name if name is not None else f"Player{which_player}"
         
                 
