@@ -8,6 +8,9 @@ from Persistence.Board import Board
 from Persistence.Player import Player
 from Persistence.Type import Type
 
+import tkinter as tk
+from tkinter import filedialog
+
 #------------------------------------------------------------------------------------+
 #| Menüsor                         |                                                 |
 #|New Game | Save Game |  Load Game|                                                 |
@@ -44,7 +47,7 @@ RIGHT_PANEL_RATIO = 1.0 - LEFT_PANEL_RATIO
 # board méret
 BOARD_ROWS = 14
 BOARD_COLS = 14
-
+MOVE_DELAY = 500
 
 UNICODE_PIECES = {
     "K": "♚", "Q": "♛", "R": "♜", "B": "♝", "N": "♞", "P": "♟",
@@ -132,9 +135,17 @@ class MenuBar(UIElement):
                     if text == "New Game":
                         app.newgame()
                     elif text == "Save Game":
-                        print("Save Game clicked")
-                    elif text == "Load Game":
-                        print("Load Game clicked")
+                        file = ask_save_file()
+                        if file:
+                            app.board.save_actions(file)
+                    elif text == "Replay Game":
+                        file = ask_open_file()
+                        if file:
+                            app.replay_actions = app.board.load_actions(file)
+                            app.replay_index = 0
+                            app.replay_mode = True
+                            app.board.newgame()
+                            app.move_delay = MOVE_DELAY
                     return
 
     def render(self, surf, app):
@@ -285,6 +296,8 @@ class BoardField(UIElement):
 
     def handle_event(self, ev, app):
         current=self.board.current_player_index
+        if self.board.get_current_player().Control!="manual" or app.replay_mode:
+            return
         if ev.type==pg.MOUSEBUTTONDOWN and ev.button==1 and self.rect.collidepoint(ev.pos) and not self.board.is_game_over:
             mx,my = ev.pos
             pad, side, cell_size, board_px, board_py = self.compute_layout()
@@ -474,6 +487,12 @@ class App:
         self.screen = pg.display.set_mode((WINDOW_W, WINDOW_H), pg.RESIZABLE)
         self.clock = pg.time.Clock()
         self.status_timer = 2000
+        self.pending_ai_action = None
+        
+        self.replay_actions = []
+        self.replay_index = 0
+        self.replay_mode = False
+        self.move_delay = 0
         self.player1=Player(1,"manual","red")
         self.player2=Player(2,"manual","blue")
         self.player3=Player(3,"random","green")
@@ -486,7 +505,7 @@ class App:
         self.left_panel = LeftPanel(pg.Rect(0,0,100,100))
         self.menu_bar = MenuBar(
         pg.Rect(0, 0, int(WINDOW_W*LEFT_PANEL_RATIO*1.5), 50),
-        ["New Game", "Save Game", "Load Game"]
+        ["New Game", "Save Game", "Replay Game"]
     )
         self.status = StatusBar(pg.Rect(0,0,100,20))
 
@@ -532,6 +551,31 @@ class App:
                 player.IsDefeated=True
                 self.status.message = f"PLAYER {player.Which_Player} is Defeated"
                 self.board.next_player()
+            else:
+                if self.replay_mode:
+                    if self.replay_index < len(self.replay_actions):
+                        self.move_delay -= dt
+
+                        if self.move_delay <= 0:
+                            action = self.replay_actions[self.replay_index]
+                            self.board.make_move(action)
+
+                            self.replay_index += 1
+                            self.move_delay = MOVE_DELAY
+                        return
+                    else:
+                        self.replay_mode = False
+                        self.status.message = "Replay finished"
+                if player.Control == "random" and self.pending_ai_action is None:
+                    action = self.board.get_random_action(self.board.current_player_index)
+                    if action is not None:
+                        self.pending_ai_action = action
+                        self.move_delay = MOVE_DELAY
+                elif self.pending_ai_action is not None:
+                    self.move_delay -= dt
+                    if self.move_delay <= 0:
+                        self.board.make_move(self.pending_ai_action)
+                        self.pending_ai_action = None
         
 
     def render(self):
@@ -558,7 +602,25 @@ class App:
     def newgame(self):
         self.board.newgame()
 
+def ask_save_file():
+    root = tk.Tk()
+    root.withdraw()
+    file = filedialog.asksaveasfilename(
+        defaultextension=".txt",
+        filetypes=[("Text files", "*.txt")]
+    )
+    root.destroy()
+    return file
 
+
+def ask_open_file():
+    root = tk.Tk()
+    root.withdraw()
+    file = filedialog.askopenfilename(
+        filetypes=[("Text files", "*.txt")]
+    )
+    root.destroy()
+    return file
 
 
 

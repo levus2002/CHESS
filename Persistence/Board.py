@@ -32,6 +32,7 @@ class Board:
         self.player3=player3
         self.player4=player4
         self.current_player_index=1
+        self.action_history = []
         self.is_game_over=False
         self.move_number=1
         self.board_targets=self.empty_board()
@@ -54,6 +55,7 @@ class Board:
         self.current_player_index=1
         self.board_targets=self.empty_board()
         self.en_passants = [] 
+        self.action_history = []
         
     
     def setupboard_state(self):
@@ -540,6 +542,7 @@ class Board:
             else:
                 reward = reward - Fig1.Type.value * Fig_value_scale
         self.get_player(p1).Reward = reward # type: ignore
+        self.action_history.append(action)
         self.next_player()
         
     def try_move(self, to_row: int, to_col: int, promotion=None) -> bool:
@@ -579,13 +582,15 @@ class Board:
             ep for ep in self.en_passants
             if ep["player"] != self.current_player_index
         ]
-        if self.get_current_player().Control=="random":
-            actions=self.get_all_moves(next)
-            action = random.randint(0,len(actions)-1)
-            self.make_move(actions[action])
 
 
-
+    def get_random_action(self, player_index):
+        actions = self.get_all_moves(player_index)
+        if not actions:
+            return None
+        return random.choice(actions)
+    
+    
 
 
 
@@ -631,5 +636,29 @@ class Board:
 
         return tensor
 
+
+    def save_actions(self, filename):
+        with open(filename, "w") as f:
+            for a in self.action_history:
+                f.write(
+                    f"{a.from_row} {a.from_col} "
+                    f"{a.to_row} {a.to_col} "
+                    f"{a.promotion} {a.special}\n"
+                )
+    
+    def load_actions(self, filename):
+        actions = []
+
+        with open(filename, "r") as f:
+            for line in f:
+                parts = line.strip().split()
+
+                fr, fc, tr, tc = map(int, parts[0:4])
+                promo = None if parts[4] == "None" else parts[4]
+                special = None if parts[5] == "None" else parts[5]
+
+                actions.append(Action(fr, fc, tr, tc, special, promo))
+
+        return actions
 
 

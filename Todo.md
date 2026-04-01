@@ -2,10 +2,10 @@ En Passant ✓
 Szín választás ✓
 Játék vége ✓
 Új játék ✓
-Mentés
-Betöltés
+Mentés ✓
+Betöltés ✓
 Tesztek
-Objekt init és setup szétválasztása. Teszteléshez és mentés betöltéshez
+Objekt init és setup szétválasztása. Teszteléshez és mentés betöltéshez ✓
 Sáncolás ✓
 Timer ✓
 Pawn improvement választható figura ✓
