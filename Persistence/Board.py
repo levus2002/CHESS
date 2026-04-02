@@ -35,6 +35,7 @@ class Board:
         self.action_history = []
         self.is_game_over=False
         self.move_number=1
+        self.winner_id=None
         self.board_targets=self.empty_board()
         self.selected_figure = None
         self.en_passants = [] 
@@ -47,6 +48,7 @@ class Board:
         self.move_number=1
         self.ispromoting=False
         self.msg=""
+        self.winner_id=None
         self.player1.startposition()
         self.player2.startposition()
         self.player3.startposition()
@@ -123,7 +125,6 @@ class Board:
             self.action_lookup = {}
             self.board_targets = self.empty_board()
             return
-        print(fig.HasMoved)
         self.selected_figure = fig
         self.current_actions = self.get_moves(fig)
 
@@ -428,8 +429,7 @@ class Board:
             "target": ((row+newrow)//2, (col+newcol)//2),
             "pawn": (newrow, newcol),
             "player": p1
-            })
-            print("passant start")        
+            })     
         ep_capture = next(
         (
             ep for ep in self.en_passants
@@ -459,6 +459,7 @@ class Board:
                     if Fig2.Type == Type.King:
                         player2.IsDefeated = True  # type: ignore
                         self.msg=f"PLAYER {p2} is Defeated"
+                        print(self.msg)
                     reward = reward + Fig2.Type.value*Fig_value_scale
                     player2.remove_figure(Fig2)  # type: ignore
 
@@ -564,17 +565,16 @@ class Board:
         if next==5:
             next=1
             self.move_number=self.move_number+1
-        print("start",start)
         while self.get_player(next).IsDefeated: # type: ignore
             next=next+1
             if next==5:
                 self.move_number=self.move_number+1
                 next=1
-            print("next:",next)
             if(next==start):
                 self.is_game_over=True
                 print("GAME OVER, player",start,"won")
                 self.msg=f"PLAYER {start} WON"
+                self.winner_id=start
                 return
 
         self.current_player_index=next
@@ -590,6 +590,11 @@ class Board:
             return None
         return random.choice(actions)
     
+    def get_reward(self, player_id):
+        return self.get_player(player_id).Reward
+    
+    def reset_reward(self, player_id):
+        self.get_player(player_id).Reward=0    
     
 
 
@@ -597,12 +602,11 @@ class Board:
 
     def encode_state(self, include_extras=True):  
         H, W = 14, 14
-        # C*H*W = 29*14*14 3d numpy Tenzor
+        # C*H*W = 25*14*14 3d numpy Tenzor
         # minden játékos minden figura típusához layer, 4*6=24
-        #4 layer one-hot encoding, melyik player van soron
         #1 layer ahol mező értéke 1, ha még nem mozgott. sánc, gyalog duplalépés ilyesmi
-        # channel count here: 24 + 4 + 1 = 29
-        C = 29
+        # channel count here: 24  + 1 = 25
+        C = 25
         tensor = np.zeros((C, H, W), dtype=np.float32)
         # figura typusok sorrendje
         piece_index = {
@@ -613,27 +617,21 @@ class Board:
             Type.Queen: 4,
             Type.King: 5
         }
-
-        for player_id in range(1, 5):
+        cur = self.current_player_index
+        order = [(cur + i - 1) % 4 + 1 for i in range(4)] 
+        for channel_offset, player_id in enumerate(order):
             player = self.get_player(player_id)
-            for pos in player.get_figure_pos_list():  # type: ignore
-                r, c = pos
+            for r,c in player.get_figure_pos_list():  # type: ignore
                 fig = player.get_figure(r, c)  # type: ignore
                 if fig is None:
                     continue
                 pidx = piece_index.get(fig.Type, None)
                 if pidx is None:
                     continue
-                chan = (player_id - 1) * 6 + pidx
+                chan = channel_offset * 6 + pidx
                 tensor[chan, r, c] = 1.0
                 if include_extras and getattr(fig, "HasMoved", False):
-                    tensor[28, r, c] = 1.0
-
-        cur = self.current_player_index
-        if 1 <= cur <= 4:
-            tensor[24 + (cur - 1), :, :] = 1.0
-
-
+                    tensor[24, r, c] = 1.0
         return tensor
 
 
@@ -660,5 +658,9 @@ class Board:
                 actions.append(Action(fr, fc, tr, tc, special, promo))
 
         return actions
+
+    def get_winner(self):
+        if self.is_game_over:
+            return self.winner_id
 
 
