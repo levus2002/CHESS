@@ -86,9 +86,11 @@ class Board:
         return self.get_player(self.current_player_index)
     
 
-    def get_figure(self,x,y) -> Figure:
+    def get_figure(self,x,y) -> Figure|None:
         p=self.board_state[x][y]
         player=self.get_player(p)
+        if p <= 0:
+            return None
         return player.get_figure(x,y) # type: ignore
     
 
@@ -247,24 +249,32 @@ class Board:
                         if self.board_state[0][4]==0 and self.board_state[0][5]==0:
                             if self.board_state[0][3]==player_id:
                                 F= player.get_figure(0,3) # type: ignore
+                                if F is None:
+                                    return
                                 if F.Type==Type.Rook and F.HasMoved==False:
                                     actions.append(Action(r, c, 0, 4, "KingCastle", None))
                     case 4:
                         if self.board_state[5][0]==0 and self.board_state[4][0]==0:
                             if self.board_state[3][0]==player_id:
                                 F= player.get_figure(3,0) # type: ignore
+                                if F is None:
+                                    return
                                 if F.Type==Type.Rook and F.HasMoved==False:
                                     actions.append(Action(r, c, 4, 0, "KingCastle", None))
                     case 2:
                         if self.board_state[8][13]==0 and self.board_state[9][13]==0:
                             if self.board_state[10][13]==player_id:
                                 F= player.get_figure(10,13) # type: ignore
+                                if F is None:
+                                    return
                                 if F.Type==Type.Rook and F.HasMoved==False:
                                     actions.append(Action(r, c, 9, 13, "KingCastle", None))
                     case 3:
                         if self.board_state[13][8]==0 and self.board_state[13][9]==0:
                             if self.board_state[13][10]==player_id:
                                 F= player.get_figure(13,10) # type: ignore
+                                if F is None:
+                                    return
                                 if F.Type==Type.Rook and F.HasMoved==False:
                                     actions.append(Action(r, c, 13, 9, "KingCastle", None))
             # ---------------- QueenCastle ----------------
@@ -274,24 +284,32 @@ class Board:
                         if self.board_state[0][7]==0 and self.board_state[0][8]==0 and self.board_state[0][9]==0:
                             if self.board_state[0][10]==player_id:
                                 F= player.get_figure(0,10) # type: ignore
+                                if F is None:
+                                    return
                                 if F.Type==Type.Rook and F.HasMoved==False:
                                     actions.append(Action(r, c, 0, 8, "QueenCastle", None))
                     case 4:
                         if self.board_state[7][0]==0 and self.board_state[8][0]==0 and self.board_state[9][0]==0:
                             if self.board_state[10][0]==player_id:
                                 F= player.get_figure(10,0) # type: ignore
+                                if F is None:
+                                    return
                                 if F.Type==Type.Rook and F.HasMoved==False:
                                     actions.append(Action(r, c, 8, 0, "QueenCastle", None))
                     case 2:
                         if self.board_state[6][13]==0 and self.board_state[5][13]==0 and self.board_state[4][13]==0:
                             if self.board_state[3][13]==player_id:
                                 F= player.get_figure(3,13) # type: ignore
+                                if F is None:
+                                    return
                                 if F.Type==Type.Rook and F.HasMoved==False:
                                     actions.append(Action(r, c, 5, 13, "QueenCastle", None))
                     case 3:
                         if self.board_state[13][6]==0 and self.board_state[13][5]==0 and self.board_state[13][4]==0:
                             if self.board_state[13][3]==player_id:
                                 F= player.get_figure(13,3) # type: ignore
+                                if F is None:
+                                    return
                                 if F.Type==Type.Rook and F.HasMoved==False:
                                     actions.append(Action(r, c, 13, 5, "QueenCastle", None))                                
                             
@@ -390,8 +408,12 @@ class Board:
             opponent_actions.extend(player_actions)
         for action in opponent_actions:
             row, col = action.from_row, action.from_col
+            if self.board_state[row][col] == 0:
+                continue
             newrow, newcol = action.to_row, action.to_col
             fig=self.get_figure(row,col)
+            if fig is None:
+                continue
             type=fig.Type 
             if hitmap[newrow][newcol]==0:
                 hitmap[newrow][newcol]=type.value
@@ -448,7 +470,8 @@ class Board:
             Fig2 = player2.get_figure(*ep_capture["pawn"])
             self.board_state[ep_capture["pawn"][0]][ep_capture["pawn"][1]] = 0
             if Fig2 is not None:
-                reward = reward + Fig2.Type.value*Fig_value_scale
+                if player2.IsDefeated==False:
+                    reward = reward + Fig2.Type.value*Fig_value_scale
                 player2.remove_figure(Fig2)  # type: ignore
         else:
             p2 = self.board_state[newrow][newcol]
@@ -456,11 +479,13 @@ class Board:
                 player2 = self.get_player(p2)
                 Fig2 = player2.get_figure(newrow, newcol)  # type: ignore
                 if Fig2 is not None:
+                    if player2.IsDefeated==False:
+                        reward = reward + Fig2.Type.value*Fig_value_scale
                     if Fig2.Type == Type.King:
                         player2.IsDefeated = True  # type: ignore
+                        player2.Reward=0
                         self.msg=f"PLAYER {p2} is Defeated"
                         print(self.msg)
-                    reward = reward + Fig2.Type.value*Fig_value_scale
                     player2.remove_figure(Fig2)  # type: ignore
 
 
@@ -502,13 +527,16 @@ class Board:
                 rookrow,rookcol=13,10
                 newrookrow,newrookcol=13,8
             Fig3=player1.get_figure(rookrow,rookcol) # type: ignore
-            player1.remove_figure(Fig3) # type: ignore
-            Fig3.move(newrookrow,newrookcol)
-            player1.add_figure(Fig3) # type: ignore
-            self.board_state[newrookrow][newrookcol] = p1
-            self.board_state[rookrow][rookcol] = 0
-            reward=reward+0.01
-            
+            if Fig3 is not None:
+                player1.remove_figure(Fig3) # type: ignore
+                Fig3.move(newrookrow,newrookcol)
+                player1.add_figure(Fig3) # type: ignore
+                self.board_state[newrookrow][newrookcol] = p1
+                self.board_state[rookrow][rookcol] = 0
+                reward=reward+0.01
+            else:
+                print("kingcastle error fig3 is none")
+                
         if action.special=="QueenCastle":
             rookrow,rookcol=0,0
             newrookrow,newrookcol=0,0
@@ -525,12 +553,15 @@ class Board:
                 rookrow,rookcol=0,10
                 newrookrow,newrookcol=0,7
             Fig3=player1.get_figure(rookrow,rookcol) # type: ignore
-            player1.remove_figure(Fig3) # type: ignore
-            Fig3.move(newrookrow,newrookcol)
-            player1.add_figure(Fig3) # type: ignore
-            self.board_state[newrookrow][newrookcol] = p1
-            self.board_state[rookrow][rookcol] = 0
-            reward=reward+0.01
+            if Fig3 is not None:
+                player1.remove_figure(Fig3) # type: ignore
+                Fig3.move(newrookrow,newrookcol)
+                player1.add_figure(Fig3) # type: ignore
+                self.board_state[newrookrow][newrookcol] = p1
+                self.board_state[rookrow][rookcol] = 0
+                reward=reward+0.01
+            else:
+                print("queencastle error fig3 is none")
 
         
 
@@ -602,11 +633,11 @@ class Board:
 
     def encode_state(self, include_extras=True):  
         H, W = 14, 14
-        # C*H*W = 25*14*14 3d numpy Tenzor
+        # C*H*W = 29*14*14 3d numpy Tenzor
         # minden játékos minden figura típusához layer, 4*6=24
         #1 layer ahol mező értéke 1, ha még nem mozgott. sánc, gyalog duplalépés ilyesmi
-        # channel count here: 24  + 1 = 25
-        C = 25
+        #4 layer one-hot encoding, hogy player játékban van e még
+        C = 29
         tensor = np.zeros((C, H, W), dtype=np.float32)
         # figura typusok sorrendje
         piece_index = {
@@ -632,6 +663,10 @@ class Board:
                 tensor[chan, r, c] = 1.0
                 if include_extras and getattr(fig, "HasMoved", False):
                     tensor[24, r, c] = 1.0
+        for i, player_id in enumerate(order):
+            if not self.get_player(player_id).IsDefeated:
+                tensor[25 + i, :, :] = 1.0
+        
         return tensor
 
 
