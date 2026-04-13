@@ -11,6 +11,9 @@ from Persistence.Type import Type
 import tkinter as tk
 from tkinter import filedialog
 
+import torch
+import ChessEnv
+
 #------------------------------------------------------------------------------------+
 #| Menüsor                         |                                                 |
 #|New Game | Save Game |  Load Game|                                                 |
@@ -38,6 +41,7 @@ from tkinter import filedialog
 
 # ---------- Konfiguráció ----------
 WINDOW_W, WINDOW_H = 1200, 720
+MIN_W, MIN_H = 1000, 700
 FPS = 20
 
 # relatív elrendezés
@@ -65,11 +69,19 @@ COLORS = {
     "brown": {"player": None, "rgb": (133, 94, 66)}
 }
 
+
 PLAYER_COLORS = {
     1: "red" ,
     2: "blue", 
     3: "green",   
     4: "purple",
+}
+CONTROL_MODES = ["manual", "random", "agent"]
+CONTROL_LABELS = {
+    "manual": "Human",
+    "random": "Random",
+    "agent": "Agent",
+    "replay": "Replay"
 }
 SQUARE_LIGHT = (220, 220, 220)   # világos szürke
 SQUARE_DARK = (170, 170, 170)    # sötétebb szürke
@@ -146,6 +158,8 @@ class MenuBar(UIElement):
                             app.replay_mode = True
                             app.board.newgame()
                             app.move_delay = MOVE_DELAY
+                    elif text == "PauseReplay":
+                        app.replay_paused = not app.replay_paused
                     return
 
     def render(self, surf, app):
@@ -156,7 +170,7 @@ class MenuBar(UIElement):
         x = self.rect.x + 10
         y = self.rect.y + 10
         btn_h = 32
-
+        
         for text in self.buttons:
             btn_w = font.get_rect(text).width + 16
             rect = pg.Rect(x, y, btn_w, btn_h)
@@ -165,12 +179,30 @@ class MenuBar(UIElement):
             self.button_rects[text] = rect
             x += btn_w + gap
         
+        if app.replay_mode:
+            btn_w = 40
+            btn_h = 32
+            rect = pg.Rect(x, y, btn_w, btn_h)
+            pg.draw.rect(surf, (90,90,90), rect, border_radius=4)
+            icon_font = ft.SysFont("Segoe UI Symbol", 20)
+
+            label = "▶" if app.replay_paused else "⏸"
+
+            text_rect = icon_font.get_rect(label)
+            text_rect.center = rect.center
+
+            icon_font.render_to(surf, text_rect, label, fgcolor=(230,230,230))
+
+            self.button_rects["PauseReplay"] = rect
+        
          
             
 class LeftPanel(UIElement):
     def __init__(self, rect: pg.Rect):
         super().__init__(rect)
         self.color_cells = {}
+        self.control_buttons = {}
+        self.load_agent_buttons = {}
 
     def handle_event(self, ev, app):
         if ev.type == pg.MOUSEBUTTONDOWN and ev.button == 1:
@@ -188,6 +220,39 @@ class LeftPanel(UIElement):
                             COLORS[color_name]["player"] = player.Which_Player
                             player.Color = color_name
                     break
+            if app.replay_mode:
+                return
+            for player_id, rect in self.control_buttons.items():
+                if rect.collidepoint(ev.pos):
+                    player = app.board.get_player(player_id)
+
+                    idx = CONTROL_MODES.index(player.Control)
+                    next_mode = CONTROL_MODES[(idx + 1) % len(CONTROL_MODES)]
+                    
+
+                    # prevent switching to agent by clicking button
+                    if next_mode == "agent" :
+                        next_mode = "manual"
+                        player.agent = None
+                        player.agent_path = None
+                    player.Control = next_mode
+                    return
+            for player_id, rect in self.load_agent_buttons.items():
+                if rect.collidepoint(ev.pos):
+                    player = app.board.get_player(player_id)
+
+                    if player.agent is not None:
+                        # unload
+                        player.agent = None
+                        player.agent_path = None
+                        player.Control = "manual"
+                    else:
+                        file = ask_open_file()
+                        if file:
+                            player.agent = load_agent(file)
+                            player.agent_path = file
+                            player.Control = "agent"
+                    return
 
     def render(self, surf, app):
         # Background
@@ -230,6 +295,37 @@ class LeftPanel(UIElement):
                 clock_text,
                 fgcolor=time_color
             )
+            btn_h = 26
+            btn_w = 100
+
+            # Control
+            ctrl_x = r.x + 10
+            ctrl_y = r.y + 40
+
+            mode = player.Control
+            if app.replay_mode:
+                label = "Replay"
+            else:
+                label = CONTROL_LABELS.get(mode, mode)
+
+            ctrl_rect = pg.Rect(ctrl_x, ctrl_y, btn_w, btn_h)
+            pg.draw.rect(surf, (80,80,80), ctrl_rect, border_radius=4)
+            font.render_to(surf, (ctrl_x + 6, ctrl_y + 5), label, fgcolor=(230,230,230))
+
+            self.control_buttons[player.Which_Player] = ctrl_rect
+
+
+            # Load Agent
+            load_x = ctrl_x + btn_w + 10
+            load_y = ctrl_y
+
+            load_rect = pg.Rect(load_x, load_y, btn_w, btn_h)
+            pg.draw.rect(surf, (60,90,60), load_rect, border_radius=4)
+
+            text = "Unload" if player.agent and not app.replay_mode else "Load"
+            font.render_to(surf, (load_x + 6, load_y + 5), text, fgcolor=(230,230,230))
+
+            self.load_agent_buttons[player.Which_Player] = load_rect
 
             # Color grid
             cell_size = self.rect.height//20
@@ -488,19 +584,17 @@ class App:
         self.clock = pg.time.Clock()
         self.status_timer = 2000
         self.pending_ai_action = None
-        
+        self.replay_paused = False
         self.replay_actions = []
         self.replay_index = 0
         self.replay_mode = False
         self.move_delay = 0
         self.player1=Player(1,"manual","red")
         self.player2=Player(2,"manual","blue")
-        self.player3=Player(3,"random","green")
-        self.player4=Player(4,"random","purple")
+        self.player3=Player(3,"manual","green")
+        self.player4=Player(4,"manual","purple")
         self.board=Board(self.player1, self.player2, self.player3, self.player4)
         self.newgame()
-        # UI elements lesznek frameenként újraszámolva rect alapján
-        # board wrapper (tárolja a piece_grid és board_fields)
         self.board_panel = BoardField(pg.Rect(0,0,100,100), BOARD_ROWS, BOARD_COLS, self.board)
         self.left_panel = LeftPanel(pg.Rect(0,0,100,100))
         self.menu_bar = MenuBar(
@@ -517,6 +611,7 @@ class App:
         left_rect = pg.Rect(0, menu_h, left_w, h - bottom_h-menu_h)
         board_rect = pg.Rect(left_w, 0, w - left_w, h - bottom_h)
         status_rect = pg.Rect(0, h - bottom_h, w, bottom_h)
+        self.menu_bar.rect = pg.Rect(0, 0, left_w, menu_h)
         self.left_panel.rect = left_rect
         self.board_panel.rect = board_rect
         self.status.rect = status_rect
@@ -526,7 +621,9 @@ class App:
             if ev.type == pg.QUIT:
                 return False
             if ev.type == pg.VIDEORESIZE:
-                self.screen = pg.display.set_mode((ev.w, ev.h), pg.RESIZABLE)
+                    w = max(MIN_W, ev.w)
+                    h = max(MIN_H, ev.h)
+                    self.screen = pg.display.set_mode((w, h), pg.RESIZABLE)
             # propagate to UI elements (order: left panel, board, status)
             self.left_panel.handle_event(ev, self)
             self.board_panel.handle_event(ev, self)
@@ -546,13 +643,16 @@ class App:
                 self.status_timer = 2000
             
             player = self.board.get_current_player()
-            player.time_ms = max(0, player.time_ms - dt)
+            if self.replay_mode == False:
+                player.time_ms = max(0, player.time_ms - dt)
             if player.time_ms==0:
                 player.IsDefeated=True
                 self.status.message = f"PLAYER {player.Which_Player} is Defeated"
                 self.board.next_player()
             else:
                 if self.replay_mode:
+                    if self.replay_paused:
+                        return
                     if self.replay_index < len(self.replay_actions):
                         self.move_delay -= dt
 
@@ -566,11 +666,21 @@ class App:
                     else:
                         self.replay_mode = False
                         self.status.message = "Replay finished"
-                if player.Control == "random" and self.pending_ai_action is None:
-                    action = self.board.get_random_action(self.board.current_player_index)
-                    if action is not None:
-                        self.pending_ai_action = action
-                        self.move_delay = MOVE_DELAY
+                if self.pending_ai_action is None:
+                    if player.Control == "random":
+                        action = self.board.get_random_action(self.board.current_player_index)
+
+                        if action is not None:
+                            self.pending_ai_action = action
+                            self.move_delay = MOVE_DELAY
+
+                    elif player.Control == "agent":
+                        if player.agent is not None:
+                            action = player.agent.select_action(self.board)
+
+                            if action is not None:
+                                self.pending_ai_action = action
+                                self.move_delay = MOVE_DELAY
                 elif self.pending_ai_action is not None:
                     self.move_delay -= dt
                     if self.move_delay <= 0:
@@ -579,9 +689,7 @@ class App:
         
 
     def render(self):
-        self.screen.fill((30,30,30))
-        # render elemek
-       
+        self.screen.fill((30,30,30)) 
         self.left_panel.render(self.screen, self)
         self.board_panel.render(self.screen, self)
         self.menu_bar.render(self.screen, self)
@@ -600,6 +708,12 @@ class App:
         sys.exit()
 
     def newgame(self):
+        self.move_delay = 0
+        self.status_timer = 2000
+        self.pending_ai_action = None
+        self.replay_actions = []
+        self.replay_index = 0
+        self.replay_mode = False
         self.board.newgame()
 
 def ask_save_file():
@@ -613,11 +727,26 @@ def ask_save_file():
     return file
 
 
+def load_agent(path):
+    model = ChessEnv.MoveScorer() 
+    state_dict = torch.load(path, map_location=torch.device("cpu"))
+    model.load_state_dict(state_dict)
+    model.eval()
+    agent = ChessEnv.RLAgent(model)
+    agent.epsilon = 0.0
+    return agent
+
+
 def ask_open_file():
     root = tk.Tk()
     root.withdraw()
     file = filedialog.askopenfilename(
-        filetypes=[("Text files", "*.txt")]
+        filetypes=[
+            ("All supported", "*.txt *.pth"),
+            ("Text files", "*.txt"),
+            ("PyTorch models", "*.pth"),
+            ("All files", "*.*")
+        ]
     )
     root.destroy()
     return file
