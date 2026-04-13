@@ -460,6 +460,11 @@ class BoardField(UIElement):
         pad, side, cell_size, board_px, board_py = self.compute_layout()
         # board background
         pg.draw.rect(surf, (50,50,50), self.rect)
+        if self.board.get_current_player().Control!="manual":
+            self.selected=None
+            self.board.ispromoting=False
+            self.pending_move=None
+            self.board.board_targets = self.board.empty_board()
         # squares
         for r in range(self.rows):
             for c in range(self.cols):
