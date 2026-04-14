@@ -11,6 +11,8 @@ class Player():
         self.Which_Player = which_player
         self.Control=control
         self.name = name if name is not None else f"Player{which_player}"
+        self.agent = None
+        self.agent_path = None
         
                 
     def startposition(self):

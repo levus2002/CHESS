@@ -5,7 +5,7 @@ class Type(Enum):
     Bishop = (3, "B")
     Rook = (5, "R")
     Queen = (9, "Q")
-    King = (10, "K")
+    King = (20, "K")
 
     def __init__(self, value, char):
         self._value_ = value
