@@ -10,3 +10,7 @@ class Type(Enum):
     def __init__(self, value, char):
         self._value_ = value
         self.char = char
+
+    @staticmethod
+    def get_value(figure_type):
+        return figure_type._value_

@@ -11,5 +11,9 @@ class Figure:
         self.X=x
         self.Y=y
         self.HasMoved=True
-
-
+        
+    def promote(self, new_type):    
+        self.Type=new_type
+    
+    def get_value(self):
+        return Type.get_value(self.Type)
