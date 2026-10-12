@@ -1,11 +1,13 @@
 
 import pygame as pg
 
-from Model.Action import Action
+from Model.Dataclasses import Action
 from Model.GameModel import GameModel
 
 from Persistence.Board import Board
 from Persistence.Player import Player
+from RL.AgentStorage import AgentStorage
+from RL.DQNActionProvider import DQNActionProvider
 from ui.boardpanel import BoardPanel
 from ui.playerpanel import PlayerPanel
 from ui.menubar import MenuBar
@@ -13,7 +15,7 @@ from ui.statusbar import StatusBar
 from Controllers.ActionProvider import ActionProvider
 from Controllers.RandomPlayer import RandomPlayer
 import random
-
+from tkinter import Tk, filedialog
 
 
 class App:
@@ -181,9 +183,11 @@ class App:
     def change_control(self, player_id: int):
         if self.replay_mode:
             return
+
         player = self.game.get_player(player_id)
+
         if player.Control == "manual":
-            player.Control = "random"
+            player.Control = "agent" if player.agent is not None else "random"
         else:
             player.Control = "manual"
 
@@ -191,10 +195,56 @@ class App:
             pg.time.get_ticks() + self.auto_move_delay
         )
 
+
     def load_agent(self, player_id: int):
         if self.replay_mode:
             return
-        pass
+
+        player = self.game.get_player(player_id)
+
+        # Unload an existing agent.
+        if player.agent is not None:
+            player.agent = None
+            player.agent_path = None
+            player.Control = "manual"
+            self.action_providers[player_id] = RandomPlayer()
+            return
+
+        root = Tk()
+        root.withdraw()
+
+        try:
+            path = filedialog.askopenfilename(
+                parent=root,
+                title=f"Load agent for Player {player_id}",
+                filetypes=[("PyTorch models", "*.pt"), ("All files", "*.*")]
+            )
+        finally:
+            root.destroy()
+
+        if not path:
+            return
+
+        try:
+            agent = AgentStorage.load(path)
+        except (OSError, RuntimeError, ValueError) as error:
+            self.status_bar.message = f"Agent loading failed: {error}"
+            return
+
+        player.agent = agent
+        player.agent_path = path
+        player.Control = "agent"
+
+        self.action_providers[player_id] = DQNActionProvider(
+            agent,
+            epsilon=0.0,
+        )
+
+        self.next_auto_move = (
+            pg.time.get_ticks() + self.auto_move_delay
+        )
+        self.status_bar.message = f"Player {player_id}: agent loaded"
+
 
     # --------------------------------------------------
     # Replay

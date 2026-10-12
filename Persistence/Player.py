@@ -1,3 +1,5 @@
+from RL.DQNAgent import DQNAgent
+
 from .Figure import Figure
 class Player():
     def __init__(self, which_player,control="manual",color=None,start_time_sec=900, name=None):
@@ -11,8 +13,8 @@ class Player():
         self.Which_Player = which_player
         self.Control=control
         self.name = name if name is not None else f"Player{which_player}"
-        self.agent = None
-        self.agent_path = None
+        self.agent: DQNAgent | None = None
+        self.agent_path: str | None = None
                 
     def startposition(self):
         self.IsDefeated = False
