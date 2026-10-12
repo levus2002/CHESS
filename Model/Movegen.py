@@ -1,9 +1,10 @@
-from Model.Action import Action
+from Model.Dataclasses import Action
 from Persistence.Figure import Figure
 from Persistence.Type import Type
 
 CASTLING = {
     1: {
+        "king_start": (0, 6),
         "KingCastle": {
             "empty": [(0, 4), (0, 5)],
             "rook": (0, 3),
@@ -18,6 +19,7 @@ CASTLING = {
         },
     },
     2: {
+        "king_start": (7, 13),
         "KingCastle": {
             "empty": [(8, 13), (9, 13)],
             "rook": (10, 13),
@@ -32,6 +34,7 @@ CASTLING = {
         },
     },
     3: {
+        "king_start": (13, 7),
         "KingCastle": {
             "empty": [(13, 8), (13, 9)],
             "rook": (13, 10),
@@ -46,6 +49,7 @@ CASTLING = {
         },
     },
     4: {
+        "king_start": (6, 0),
         "KingCastle": {
             "empty": [(5, 0), (4, 0)],
             "rook": (3, 0),
@@ -159,8 +163,13 @@ class Movegen:
     def get_castling_moves(self, king: Figure) -> list[Action]:
         if king.HasMoved:
             return []
+        
+        if (king.X, king.Y) != CASTLING[king.Player]["king_start"]:
+            return []
+        
         moves: list[Action] = []
-        for special, config in CASTLING[king.Player].items():
+        for special in ("KingCastle", "QueenCastle"):
+            config = CASTLING[king.Player][special]
 
             if not all(
                 self.board.is_free(*pos)

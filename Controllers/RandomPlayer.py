@@ -1,4 +1,4 @@
-from Model.Action import Action
+from Model.Dataclasses import Action
 from Model.GameModel import GameModel
     
 import random

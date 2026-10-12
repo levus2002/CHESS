@@ -1,4 +1,4 @@
-from Model.Action import Action
+from Model.Dataclasses import Action, MoveResult
 from Model.Movegen import CASTLING, PAWN_DIRECTIONS, Movegen
 from Persistence.Figure import Figure
 from Persistence.Player import Player
@@ -10,10 +10,13 @@ from Persistence.Board import Board
 
 
 
+
 class GameModel:
     def __init__(self, board: Board, players: dict[int, Player]):
         self.isgameover = False
         self.move_number = 1
+        self.max_turns = 100
+        self.winner_id: int | None = None
         self.action_history: list[Action] = []
         self.board = board
         self.players = players
@@ -52,6 +55,7 @@ class GameModel:
         self.isgameover = False
         self.current_player = 1
         self.move_number = 1
+        self.winner_id = None
         self.clear_selection()
         self.action_history: list[Action] = []
         
@@ -159,11 +163,13 @@ class GameModel:
 
         return highlights
     
-    def step(self, action: Action):
+    def step(self, action: Action) -> MoveResult:
+        if self.isgameover:
+            raise RuntimeError("Game is already over")
         figure = self._validate_action(action)
-        self._execute_action(figure, action)
+        result = self._execute_action(figure, action)
         self._advance_turn()
-        
+        return result
         
         
         
@@ -188,8 +194,14 @@ class GameModel:
     def _advance_turn(self):
         old_player = self.current_player
         self.current_player = self._next_active_player()
+        if self.isgameover:
+            return
         if old_player > self.current_player:
             self.move_number += 1
+        if self.move_number > self.max_turns:
+            self.isgameover = True
+            self.winner_id = None
+            return
         self.board.clear_en_passants(self.current_player)
 
     def _move_figure(
@@ -207,17 +219,28 @@ class GameModel:
     def _next_active_player(self) -> int:
         for offset in range(1, 5):
             player_id = (self.current_player - 1 + offset) % 4 + 1
-
-            if not self.players[player_id].IsDefeated:
-                if player_id == self.current_player:
-                    self.isgameover = True
-
-                return player_id
+            player = self.players[player_id]
+            if player.IsDefeated:
+                continue
+            has_moves = any(self.movegen.get_possible_moves(figure) for figure in player.Figures)
+            if not has_moves:
+                player.IsDefeated = True
+                continue
+            
+            if sum(not p.IsDefeated for p in self.players.values()) == 1:
+                self.isgameover = True
+                self.winner_id = player_id
+                
+            return player_id
         raise RuntimeError("No active players remaining")
     
-    def _execute_action(self, figure: Figure, action: Action):
+    def _execute_action(self, figure: Figure, action: Action) -> MoveResult:
+        result = MoveResult(player_id=figure.Player)
         captured = self._get_captured_figure(action)
         if captured is not None:
+            #capturing king defeats player, but reward should still be given for taking the king. so reward first
+            result.captured_value = captured.get_value()
+            result.captured_player_active = not self.players[captured.Player].IsDefeated
             self._capture_figure(captured)
         self._move_figure(
             figure,
@@ -229,10 +252,12 @@ class GameModel:
 
         if action.promotion is not None:
             self._promote_figure(figure, action.promotion)
+            result.promotion_value = figure.get_value()
 
         if action.special == "double":
             self._register_en_passant(figure, action)
         self.action_history.append(action)
+        return result
         
     
     def _get_captured_figure(self, action: Action) -> Figure | None:
