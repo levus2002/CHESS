@@ -1,5 +1,6 @@
 
 from dataclasses import dataclass
+from unittest import result
 
 import numpy as np
 
@@ -15,8 +16,9 @@ from RL.Rewards import Rewards
 class MatchResult:
     winner_id: int | None
     move_count: int
-    experiences: list[Experience]
+    experiences: dict[int, list[Experience]]
     actions: list
+    survivors: frozenset[int]
 
 
 @dataclass
@@ -49,7 +51,9 @@ class MatchRunner:
         game.max_turns = self.max_turns
         game.new_game()
 
-        experiences = []
+        experiences: dict[int, list[Experience]] = {
+            player_id: [] for player_id in self.learning_players
+        }
         pending = {}
 
         while not game.isgameover:
@@ -70,7 +74,7 @@ class MatchRunner:
                 # Finish the previous transition for this player.
                 if player_id in pending:
                     previous = pending.pop(player_id)
-                    experiences.append(
+                    experiences[player_id].append(
                         Experience(
                             state=previous.state,
                             action=previous.action,
@@ -96,12 +100,18 @@ class MatchRunner:
             # Immediate rewards belong to the acting player.
             if player_id in pending:
                 pending[player_id].reward += Rewards.move_reward(result)
+            
+            # Penalize the player whose piece was captured.
+            victim_id = result.captured_player_id
+            
+            if victim_id is not None and victim_id in pending:
+                pending[victim_id].reward += Rewards.loss_reward(result)
 
             # Close experiences for newly eliminated players.
             for pid in list(pending):
                 if game.players[pid].IsDefeated:
                     previous = pending.pop(pid)
-                    experiences.append(
+                    experiences[pid].append(
                         Experience(
                             state=previous.state,
                             action=previous.action,
@@ -116,7 +126,7 @@ class MatchRunner:
         terminal_rewards = Rewards.terminal_rewards(game)
 
         for pid, previous in pending.items():
-            experiences.append(
+            experiences[pid].append(
                 Experience(
                     state=previous.state,
                     action=previous.action,
@@ -132,4 +142,9 @@ class MatchRunner:
             move_count=game.move_number,
             experiences=experiences,
             actions=list(game.action_history),
+            survivors=frozenset(
+                pid
+                for pid, player in game.players.items()
+                if not player.IsDefeated
+            ),
         )

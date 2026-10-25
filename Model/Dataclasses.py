@@ -16,6 +16,7 @@ class MoveResult:
     player_id: int
     captured_value: int = 0
     captured_player_active: bool = False
+    captured_player_id: int | None = None
     promotion_value: int = 0
 
 @dataclass

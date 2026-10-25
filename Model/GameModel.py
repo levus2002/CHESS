@@ -241,6 +241,7 @@ class GameModel:
             #capturing king defeats player, but reward should still be given for taking the king. so reward first
             result.captured_value = captured.get_value()
             result.captured_player_active = not self.players[captured.Player].IsDefeated
+            result.captured_player_id = captured.Player
             self._capture_figure(captured)
         self._move_figure(
             figure,

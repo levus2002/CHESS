@@ -8,6 +8,7 @@ from Model.Dataclasses import MoveResult
 
 class Rewards:
     CAPTURE_SCALE = 0.01
+    LOSS_SCALE = 0.02
     PROMOTION_SCALE = 0.01
     WIN_REWARD = 1.0
     DRAW_REWARD_POOL = 0.36
@@ -23,6 +24,13 @@ class Rewards:
             reward += Rewards.PROMOTION_SCALE * (result.promotion_value - 1)
 
         return reward
+
+    @staticmethod
+    def loss_reward(result: MoveResult) -> float:
+        if not result.captured_player_active:
+            return 0.0
+
+        return -Rewards.LOSS_SCALE * result.captured_value
 
     @staticmethod
     def terminal_rewards(game: GameModel) -> dict[int, float]:

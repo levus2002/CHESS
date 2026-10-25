@@ -45,7 +45,7 @@ def main():
             dqn_provider.epsilon = 0.0
         result = runner.play_game()
 
-        for experience in result.experiences:
+        for experience in result.experiences[1]:
             buffer.add(
                 experience.state,
                 experience.action,
@@ -59,7 +59,9 @@ def main():
         
         # Train after each match, once enough experiences exist.
         if match_number<training_matches+1:
-            loss = trainer.train_step()
+            loss = None
+            for _ in range(4):
+                loss = trainer.train_step()
         else:
             loss = None
 
