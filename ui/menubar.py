@@ -20,8 +20,6 @@ class MenuBar(UIElement):
         self.font = ft.SysFont(None, 18)
         self.icon_font = ft.SysFont("Segoe UI Symbol", 20)
 
-        self.replay_mode = False
-        self.replay_paused = False
 
     def handle_event(self, ev: pg.event.Event) -> None:
         if ev.type != pg.MOUSEBUTTONDOWN or ev.button != 1:
@@ -62,23 +60,3 @@ class MenuBar(UIElement):
 
             self.button_rects[name] = rect
             x += btn_w + gap
-
-        if self.replay_mode:
-            rect = pg.Rect(x, y, 40, btn_h)
-
-            pg.draw.rect(
-                surf, (90, 90, 90),
-                rect, border_radius=4
-            )
-
-            label = "▶" if self.replay_paused else "⏸"
-
-            text_rect = self.icon_font.get_rect(label)
-            text_rect.center = rect.center
-
-            self.icon_font.render_to(
-                surf, text_rect, label,
-                fgcolor=(230, 230, 230)
-            )
-
-            self.button_rects["PauseReplay"] = rect

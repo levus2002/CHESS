@@ -46,7 +46,6 @@ class BoardPanel(UIElement):
 
         self.game_model = game_model
 
-        self.replay_mode = False
         self.highlights = [[0] * 14 for _ in range(14)]
         # During promotion.
         self.pending_actions = []
@@ -87,7 +86,7 @@ class BoardPanel(UIElement):
     # --------------------------------------------------
 
     def handle_event(self, ev: pg.event.Event) -> None:
-        if self.replay_mode or self.game_model.isgameover:
+        if self.game_model.isgameover:
             return
 
         if self.game_model.CurrentPlayer().Control != "manual":

@@ -167,19 +167,29 @@ class Benchmark:
 
 def main():
     benchmark = Benchmark(
-        #baseline_path="agents/dqn_800.pt",
-        baseline_path="agents/evolution/trial_002/generation_008_best.pt",
+        baseline_path="agents/dqn_800.pt",
         device="cuda",
-        matches_per_agent=40,
+        matches_per_agent=200,
         baseline_epsilon=0.05,
         seed=42,
     )
 
     benchmark.evaluate_trials(
         trials=[
+            "agents/evolution/trial_001",
             "agents/evolution/trial_002",
             "agents/evolution/trial_003",
             "agents/evolution/trial_004",
+            "agents/evolution/trial_005",
+            "agents/evolution/trial_006",
+            "agents/evolution/trial_007",
+            "agents/evolution/trial_008",
+            "agents/evolution/trial_009",
+            "agents/evolution/trial_010",
+            "agents/evolution/trial_011",
+            "agents/evolution/trial_012",
+            "agents/evolution/trial_013",
+            "agents/evolution/trial_014",    
         ],
         output_path="agents/evolution/benchmarks/results.csv",
     )

@@ -15,7 +15,7 @@ class DQNTrainer:
         model: MoveScorer,
         buffer: ReplayBuffer,
         device: str = "cpu",
-        gamma: float = 0.995,
+        gamma: float = 0.998,
         learning_rate: float = 0.0001,
         batch_size: int = 64,
         target_update_interval: int = 500,

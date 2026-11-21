@@ -273,7 +273,7 @@ class EvolutionTrainer:
 
 def main():
     evolution = EvolutionTrainer(
-        base_model_path="agents/evolution/trial_002/generation_008_best.pt",
+        base_model_path="agents/evolution/trial_006/generation_001_best.pt",
         population_size=16,
         mutation_std=0.002,
         device="cuda",
@@ -281,8 +281,8 @@ def main():
 
     evolution.train(
         generations=4,
-        training_matches=1100,
-        evaluation_matches=150,
+        training_matches=2000,
+        evaluation_matches=600,
         epsilon=0.2,
         training_steps=4,
         elite_count=4,

@@ -7,9 +7,9 @@ from Model.Dataclasses import MoveResult
 
 
 class Rewards:
-    CAPTURE_SCALE = 0.01
-    LOSS_SCALE = 0.02
-    PROMOTION_SCALE = 0.01
+    CAPTURE_SCALE = 0.015
+    LOSS_SCALE = 0.03
+    PROMOTION_SCALE = 0.03
     WIN_REWARD = 1.0
     DRAW_REWARD_POOL = 0.36
 

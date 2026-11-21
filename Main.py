@@ -49,12 +49,6 @@ class App:
         self.auto_move_delay = self.AUTO_MOVE_DELAY
         self.next_auto_move = 0
 
-        # Replay
-        self.replay_mode = False
-        self.replay_paused = False
-        self.replay_actions: list[Action] = []
-        self.replay_index = 0
-
         self._create_ui()
 
 
@@ -66,8 +60,6 @@ class App:
     def run(self):
         while self.running:
             dt = dt = self.clock.tick(self.FPS)
-
-            self._sync_ui()
             self.handle_events()
             self.update(dt)
             self.render()
@@ -75,7 +67,7 @@ class App:
         pg.quit()
     
     def _update_clock(self, dt: int):
-        if self.game.isgameover or self.replay_mode:
+        if self.game.isgameover:
             return
 
         player = self.game.CurrentPlayer()
@@ -108,10 +100,8 @@ class App:
         self._update_clock(dt)
         now = pg.time.get_ticks()
 
-        if self.replay_mode:
-            self._update_replay(now)
-        else:
-            self._update_autoplay(now)
+
+        self._update_autoplay(now)
 
         for element in self.ui_elements:
             element.update(dt)
@@ -125,7 +115,7 @@ class App:
         pg.display.flip()
 
     # --------------------------------------------------
-    # Autoplay and replay
+    # Autoplay
     # --------------------------------------------------
 
     def _update_autoplay(self, now: int):
@@ -159,10 +149,6 @@ class App:
     # --------------------------------------------------
 
     def new_game(self):
-        self.replay_mode = False
-        self.replay_paused = False
-        self.replay_actions.clear()
-        self.replay_index = 0
 
         self.game.new_game()
         self._clear_board_selection()
@@ -181,8 +167,6 @@ class App:
     # --------------------------------------------------
 
     def change_control(self, player_id: int):
-        if self.replay_mode:
-            return
 
         player = self.game.get_player(player_id)
 
@@ -197,8 +181,6 @@ class App:
 
 
     def load_agent(self, player_id: int):
-        if self.replay_mode:
-            return
 
         player = self.game.get_player(player_id)
 
@@ -245,62 +227,6 @@ class App:
         )
         self.status_bar.message = f"Player {player_id}: agent loaded"
 
-
-    # --------------------------------------------------
-    # Replay
-    # --------------------------------------------------
-
-    def start_replay(self, actions: list[Action]):
-        self.game.new_game()
-        self._clear_board_selection()
-
-        self.replay_actions = list(actions)
-        self.replay_index = 0
-
-        self.replay_mode = True
-        self.replay_paused = False
-
-        self.next_auto_move = (
-            pg.time.get_ticks() + self.auto_move_delay
-        )
-
-    def _update_replay(self, now: int):
-        if self.replay_paused:
-            return
-
-        if now < self.next_auto_move:
-            return
-
-        if self.replay_index >= len(self.replay_actions):
-            self.replay_paused = True
-            return
-
-        action = self.replay_actions[self.replay_index]
-
-        self.game.step(action)
-        self.replay_index += 1
-
-        self.next_auto_move = now + self.auto_move_delay
-
-    def toggle_replay_pause(self):
-        if not self.replay_mode:
-            return
-
-        self.replay_paused = not self.replay_paused
-
-        if not self.replay_paused:
-            self.next_auto_move = (
-                pg.time.get_ticks() + self.auto_move_delay
-            )
-
-    def open_replay(self):
-        pass
-
-    def save_game(self):
-        pass
-
-
-
     # --------------------------------------------------
     # UI
     # --------------------------------------------------
@@ -314,12 +240,9 @@ class App:
 
         self.menu_bar = MenuBar(
             pg.Rect(0, 0, width, menu_height),
-            buttons=["New Game", "Save Game", "Replay Game"],
+            buttons=["New Game"],
             callbacks={
                 "New Game": self.new_game,
-                "Save Game": self.save_game,
-                "Replay Game": self.open_replay,
-                "PauseReplay": self.toggle_replay_pause,
             },
         )
 
@@ -395,13 +318,6 @@ class App:
             status_height,
         )
 
-    def _sync_ui(self):
-        """Pass application-level display state to the UI."""
-        self.menu_bar.replay_mode = self.replay_mode
-        self.menu_bar.replay_paused = self.replay_paused
-
-        self.player_panel.replay_mode = self.replay_mode
-        self.board_panel.replay_mode = self.replay_mode
 
 
 

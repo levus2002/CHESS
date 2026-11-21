@@ -43,8 +43,6 @@ class PlayerPanel(UIElement):
         self.on_load_agent = on_load_agent
         self.get_current_player = get_current_player
 
-        self.replay_mode = False
-
         self.color_cells: dict[tuple[int, str], pg.Rect] = {}
         self.control_buttons: dict[int, pg.Rect] = {}
         self.load_agent_buttons: dict[int, pg.Rect] = {}
@@ -56,8 +54,6 @@ class PlayerPanel(UIElement):
     #--------------------------------------------------
     
     def handle_event(self, ev: pg.event.Event) -> None:
-        if self.replay_mode:
-            return
 
         if ev.type != pg.MOUSEBUTTONDOWN or ev.button != 1:
             return
@@ -187,19 +183,17 @@ class PlayerPanel(UIElement):
         )
 
         control_label = (
-            "Replay"
-            if self.replay_mode
-            else CONTROL_LABELS.get(player.Control, player.Control or "Human")
+             CONTROL_LABELS.get(player.Control, player.Control or "Human")
         )
 
         load_label = (
             "Unload"
-            if player.agent is not None and not self.replay_mode
+            if player.agent is not None
             else "Load"
         )
 
-        ctrl_color = (65, 65, 65) if self.replay_mode else (80, 80, 80)
-        load_color = (50, 65, 50) if self.replay_mode else (60, 90, 60)
+        ctrl_color =  (80, 80, 80)
+        load_color =  (60, 90, 60)
 
         pg.draw.rect(
             surf, ctrl_color, ctrl_rect, border_radius=4
