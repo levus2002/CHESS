@@ -44,13 +44,16 @@ class Tournament:
         completed = 0
 
         print(f"{len(paths)} agents | {total} matches")
-
+        seating_rng = random.Random(self.seed)
         with torch.inference_mode():
             for group in itertools.combinations(range(len(paths)), 4):
 
                 # Six permutations:
                 for others in itertools.permutations(group[1:]):
                     seating = (group[0],) + others
+                    #so the fixed agent is not always seat 1
+                    shift = seating_rng.randrange(4)
+                    seating = seating[shift:] + seating[:shift]
 
                     game_seed = self.seed + completed
                     random.seed(game_seed)
@@ -76,7 +79,7 @@ class Tournament:
                         record = stats[index]
                         record["matches"] += 1
 
-                        if winner is None:
+                        if winner is None and seat in result.survivors:
                             record["draws"] += 1
                         elif winner == seat:
                             record["wins"] += 1
@@ -163,13 +166,14 @@ def main():
 
             "agents/evolution/trial_011/generation_002_best.pt",
             
-            "agents/evolution/trial_014/generation_001_best.pt",
-            "agents/evolution/trial_014/generation_002_best.pt",
+            "agents/evolution/trial_013/generation_003_best.pt",
+            "agents/evolution/trial_012/generation_003_best.pt",
+            "agents/evolution/trial_013/generation_004_best.pt",
             "agents/evolution/trial_014/generation_003_best.pt",
-            "agents/evolution/trial_014/generation_004_best.pt",
+            "agents/evolution/trial_012/generation_001_best.pt",
 
         ],
-        output_path="agents/evolution/tournaments/best002results.csv",
+        output_path="agents/evolution/tournaments/bestchangedbig002results.csv",
     )
 
 

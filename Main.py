@@ -27,10 +27,10 @@ class App:
         self.board = Board()
 
         self.players: dict[int, Player] = {
-            1: Player(1, "manual", "red"),
-            2: Player(2, "manual", "blue"),
-            3: Player(3, "manual", "green"),
-            4: Player(4, "manual", "purple"),
+            1: Player(1, "manual", "red", start_time_sec=600),
+            2: Player(2, "manual", "blue", start_time_sec=600),
+            3: Player(3, "manual", "green", start_time_sec=600),
+            4: Player(4, "manual", "purple", start_time_sec=600),
         }
         self.game = GameModel(self.board, self.players)
         self.game.new_game()
